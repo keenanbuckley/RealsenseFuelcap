@@ -13,11 +13,14 @@ RUN apt update && apt install -y \
 
 # install ros packages
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-        ros-humble-pcl-conversions
+        ros-humble-pcl-conversions \
+        ros-humble-rviz2 \
+        ros-humble-librealsense2* \
+        ros-humble-realsense2-* \
+        python3-pip
 
 ENV HOME /home/mines
 WORKDIR "/home/mines/mines_ws"
-
 ENV DISPLAY=host.docker.internal:0.0
 
 CMD ["/bin/bash"]

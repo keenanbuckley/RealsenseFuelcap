@@ -1,0 +1,2 @@
+# Ignore Docker startup script which varies depending on system configuration
+startup.sh
