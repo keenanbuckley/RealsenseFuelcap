@@ -6,6 +6,7 @@ from sensor_msgs.msg import Image
 class RealsenseSubscriber(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
+
         self.subscription = self.create_subscription(
             Image,
             '/camera/color/image_rect_raw',
@@ -13,9 +14,9 @@ class RealsenseSubscriber(Node):
             10)
         self.subscription
 
+
     def listener_callback(self, image):
         self.get_logger().info(f'Recieved image of shape: {image.width}x{image.height}')
-
 
 def main(args=None):
     rclpy.init(args=args)
