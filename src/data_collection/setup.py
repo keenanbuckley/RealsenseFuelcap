@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'simulated = data_collection.realsense_simulated:main',
             'camera = data_collection.realsense_collection:main',
         ],
     },
