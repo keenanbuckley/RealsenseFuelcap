@@ -5,3 +5,4 @@ startup.sh
 build
 install
 log
+*.png

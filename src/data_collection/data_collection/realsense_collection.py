@@ -1,3 +1,5 @@
+import cv2
+import numpy as np
 import rclpy
 from rclpy.node import Node
 
@@ -7,21 +9,49 @@ from sensor_msgs.msg import Image
 class RealsenseSubscriber(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
-        self.subscription = self.create_subscription(
+        self.color_subscription = self.create_subscription(
             Image,
             '/camera/color/image_rect_raw',
-            self.listener_callback,
+            self.color_listener_callback,
             10)
-        self.subscription
+        self.depth_subscription = self.create_subscription(
+            Image,
+            '/camera/depth/image_rect_raw',
+            self.depth_listener_callback,
+            10)
+        self.color_subscription
+        self.depth_subscription
         #keyboard.on_release_key('g', self.keyboard_listener)
-        self.image = None
+        self.color_img_msg = None
+        self.depth_img_msg = None
 
     def keyboard_listener(self, other=None):
-        self.get_logger().info(f'Image of shape: {self.image.width}x{self.image.height}')
-        print(self.image.data[0][0])
+        image_bgr = np.array(self.color_img_msg.data, dtype=np.uint8).reshape(self.color_img_msg.height, self.color_img_msg.width, -1)
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        cv2.imwrite('saved_rgb.png', image_rgb)
+        
+        image_depth = np.array(self.depth_img_msg.data, dtype=np.uint8).reshape(self.color_img_msg.height, self.color_img_msg.width, -1)
+        print(image_depth.shape)
+        #image_rgb = cv2.cvtColor(image_depth, cv2.COLOR_BGR2RGB)
+        #cv2.imwrite('saved_depth.png', image_rgb)
 
-    def listener_callback(self, image):
-        self.image = image
+        #imagebgr = cv2.cvtColor(imagebgr, cv2.COLOR_GRAY2BGR)
+        #imagergb = cv2.cvtColor(imagebgr, cv2.COLOR_BGR2RGB)
+        cv2.imwrite('saved_depth0.png', image_depth[:,:,0])
+        cv2.imwrite('saved_depth1.png', image_depth[:,:,1])
+
+        print(np.max(image_depth), np.min(image_depth))
+        image_depth = np.bitwise_or(np.left_shift(np.array(image_depth[:,:,1], dtype=np.uint16), 8), np.array(image_depth[:,:,0], dtype=np.uint16))
+        
+        cv2.imwrite('saved_depth.png', image_depth)
+
+    def color_listener_callback(self, img_msg):
+        self.color_img_msg = img_msg
+        self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
+    
+    def depth_listener_callback(self, img_msg):
+        self.depth_img_msg = img_msg
+       
 
 def main(args=None):
     rclpy.init(args=args)
