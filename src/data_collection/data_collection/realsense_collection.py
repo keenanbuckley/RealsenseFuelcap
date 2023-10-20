@@ -3,8 +3,9 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
+from cv_bridge import CvBridge, CvBridgeError
+
 from sensor_msgs.msg import Image
-#import keyboard
 
 class RealsenseSubscriber(Node):
     def __init__(self):
@@ -26,24 +27,23 @@ class RealsenseSubscriber(Node):
         self.depth_img_msg = None
 
     def keyboard_listener(self, other=None):
-        image_bgr = np.array(self.color_img_msg.data, dtype=np.uint8).reshape(self.color_img_msg.height, self.color_img_msg.width, -1)
-        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        cv2.imwrite('saved_rgb.png', image_rgb)
-        
-        image_depth = np.array(self.depth_img_msg.data, dtype=np.uint8).reshape(self.color_img_msg.height, self.color_img_msg.width, -1)
-        print(image_depth.shape)
-        #image_rgb = cv2.cvtColor(image_depth, cv2.COLOR_BGR2RGB)
-        #cv2.imwrite('saved_depth.png', image_rgb)
+        bridge = CvBridge()
 
-        #imagebgr = cv2.cvtColor(imagebgr, cv2.COLOR_GRAY2BGR)
-        #imagergb = cv2.cvtColor(imagebgr, cv2.COLOR_BGR2RGB)
-        cv2.imwrite('saved_depth0.png', image_depth[:,:,0])
-        cv2.imwrite('saved_depth1.png', image_depth[:,:,1])
+        try:
+            image_color = bridge.imgmsg_to_cv2(self.color_img_msg, desired_encoding="passthrough")
+            image_depth = bridge.imgmsg_to_cv2(self.depth_img_msg, desired_encoding="passthrough")
+        except CvBridgeError as e:
+            print(e)
+        
+        image_depth = np.array(image_depth, dtype=np.float32)
+        
+        image_color = cv2.cvtColor(image_color, cv2.COLOR_RGB2BGR)
+        cv2.imwrite('saved_color.png', image_color)
 
         print(np.max(image_depth), np.min(image_depth))
-        image_depth = np.bitwise_or(np.left_shift(np.array(image_depth[:,:,1], dtype=np.uint16), 8), np.array(image_depth[:,:,0], dtype=np.uint16))
-        
-        cv2.imwrite('saved_depth.png', image_depth)
+        print(image_depth.shape[0], image_depth.shape[1])
+        print(len(image_depth[0]))
+        print(image_depth[int(image_depth.shape[0]/2), int(image_depth.shape[1]/2)])
 
     def color_listener_callback(self, img_msg):
         self.color_img_msg = img_msg
