@@ -17,7 +17,9 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         ros-humble-rviz2 \
         ros-humble-librealsense2* \
         ros-humble-realsense2-* \
-        python3-pip
+        python3-pip \
+        ros-humble-gazebo-ros-pkgs \
+        ros-humble-gazebo-plugins 
 
 ENV HOME /home/mines
 WORKDIR "/home/mines/mines_ws"

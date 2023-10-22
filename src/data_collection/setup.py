@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'simulated = data_collection.realsense_simulated:main',
             'camera = data_collection.realsense_collection:main',
+            'gazebo_camera = data_collection.realsense_simulated_collection:main',
         ],
     },
 )
