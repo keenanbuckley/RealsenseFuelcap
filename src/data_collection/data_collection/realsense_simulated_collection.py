@@ -37,7 +37,7 @@ class Realsense_Simulated_Collection(Node):
         image_depth = np.array(image_depth, dtype=np.uint16)
 
         # Save color image
-        cv2.imwrite('saved_color.png', image_color)
+        cv2.imwrite('saved_img.png', image_color)
 
         # Print depth info
         self.get_logger().info(f"Depth Max: {np.max(image_depth)}, Depth Min: {np.min(image_depth)}")
