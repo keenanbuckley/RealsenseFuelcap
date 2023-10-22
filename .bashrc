@@ -1,10 +1,5 @@
 source /opt/ros/humble/setup.bash
 
-#Find camera
-alias start_realsense="cd ~/mines_ws && ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true"
-#Start real world data collection
-alias camera_launch="cd ~/mines_ws && source install/setup.bash && ros2 run data_collection camera"
-#Simulate camera
 alias start_sim="cd ~/mines_ws && source install/setup.bash && ros2 run data_collection simulated"
 #Builds all ROS2 packages
 alias ros_build="cd ~/mines_ws && colcon build --packages-select data_collection"
@@ -14,3 +9,5 @@ alias gazebo_Setup='sudo apt-get install ros-humble-gazebo-plugins && source /us
 alias gazebo_Start='source /usr/share/gazebo/setup.sh && gazebo --verbose --ros-args --params-file $(ros2 pkg prefix gazebo_plugins)/share/gazebo_plugins/worlds/gazebo_ros_depth_camera_demo.world'
 #Start Gazebo data collection
 alias gazebo_camera_launch="cd ~/mines_ws && source install/setup.bash && ros2 run data_collection gazebo_camera"
+
+alias start_realsense="cd ~/mines_ws && ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=true"
