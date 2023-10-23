@@ -1,3 +1,8 @@
+################################################
+######### FILE IS NOT COMPLETE #################
+################################################
+
+
 from typing import List, Union
 
 import numpy as np
@@ -13,9 +18,9 @@ def camera_translation() -> np.ndarray:
     z = -3.07
     return np.transpose(np.array([x,y,z]))
 
-def calculate_matrix(x: float, y: float, z: float, angle_mount: float, angle_cap: float) -> np.ndarray:
-    t_mount_to_cap = np.transpose(np.ndarray([x, y, z]))
-    R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True)
+def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle_cap: float = 0) -> np.ndarray:
+    t_mount_to_cap = np.transpose(np.array([x, y, z]))
+    R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True).as_matrix()
     H_mount_to_cap = transformation_matrix(t_mount_to_cap, R_mount_to_cap)                          # rotation
     
 
@@ -23,8 +28,8 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float, angle_cap
     R_camera_to_mount = Rotation.from_euler('y',angle_mount,degrees=True).as_matrix()
     H_camera_to_mount = transformation_matrix(t_camera_to_mount, R_camera_to_mount)
 
-    H_cap_to_cam = np.matmul(H_camera_to_mount, H_mount_to_cap)
-    H_cam_to_cap = np.invert(H_cap_to_cam)
+    H_cap_to_cam = np.matmul(H_mount_to_cap, H_camera_to_mount)
+    H_cam_to_cap = np.linalg.inv(H_cap_to_cam)
     return H_cam_to_cap
 
 
@@ -66,6 +71,8 @@ def main():
         [0, 0, 1, 1],
         [0, 0, 0, 1],
     ]))
+
+    print(calculate_matrix(20, 30, -30, angle_mount=20))
 
 
 
