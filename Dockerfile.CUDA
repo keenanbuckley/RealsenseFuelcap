@@ -154,7 +154,8 @@ ENV QT_X11_NO_MITSHM 1
 
 WORKDIR /home/mines/mines_ws
 RUN useradd -m -s /bin/bash mines
+# need to have sudo access so we can change permissions to allow for devcontainers
 RUN usermod -aG sudo mines
-RUN echo 'mines:balls' | chpasswd
+RUN echo 'mines:qw21QW@!' | chpasswd
 USER mines
 
