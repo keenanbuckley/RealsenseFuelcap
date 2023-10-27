@@ -6,6 +6,7 @@ from rclpy.node import Node
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 
+
 class Realsense_Simulated_Collection(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
@@ -19,7 +20,7 @@ class Realsense_Simulated_Collection(Node):
             10)
         self.depth_subscription = self.create_subscription(
             Image,
-            '/camera/color/image_rect_raw',
+            '/camera/aligned_depth_to_color/image_raw',
             self.depth_listener_callback,
             10)
 
@@ -37,7 +38,10 @@ class Realsense_Simulated_Collection(Node):
         image_depth = np.array(image_depth, dtype=np.uint16)
 
         # Save color image
-        cv2.imwrite('saved_img.png', image_color)
+        cv2.imwrite('data/image.png', image_color)
+
+        # Save depth image
+        np.save('data/depth.npy', image_depth)
 
         # Print depth info
         self.get_logger().info(f"Depth Max: {np.max(image_depth)}, Depth Min: {np.min(image_depth)}")
@@ -50,6 +54,7 @@ class Realsense_Simulated_Collection(Node):
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -64,6 +69,6 @@ def main(args=None):
     if rclpy.ok():
         rclpy.shutdown()
 
+
 if __name__ == '__main__':
     main()
-

@@ -6,3 +6,5 @@ build
 install
 log
 *.png
+
+# Ignore generated data
