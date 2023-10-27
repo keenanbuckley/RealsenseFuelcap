@@ -11,7 +11,6 @@ from scipy.spatial.transform import Rotation
 import cv2
 
 
-
 def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle_cap: float = 0) -> np.ndarray:
     """
     Calculates the transformation matrix from the camera to the fuel cap using the data collection rig
@@ -32,8 +31,8 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True).as_matrix()
     H_mount_to_cap = __transformation_matrix(t_mount_to_cap, R_mount_to_cap)                          # rotation
     
-
-    t_camera_to_mount = np.zeros(3)
+    
+    t_camera_to_mount = np.zeros(3)#__mount_to_camera_translation()
     R_camera_to_mount = Rotation.from_euler('y',180+angle_mount,degrees=True).as_matrix()
     H_camera_to_mount = __transformation_matrix(t_camera_to_mount, R_camera_to_mount)
 
@@ -114,15 +113,20 @@ def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray) -> np.
     return img
 
 
-def __mount_to_camera_translation() -> np.ndarray:
+def __mount_to_camera_translation(cm=True) -> np.ndarray:
     """
     camera translation based on datasheet information
     camera origin is located on left camera, inset 3.07 mm
+    Default to return translation in centimeters
     """
     x = 9          # cameras are 18 mm apart
     y = 4.2 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
     z = -.37
-    return np.transpose(np.array([x,y,z])) / 10
+
+    trans = np.array(np.array([x,y,z]), dtype = np.float32)
+    if cm:
+        return trans / 10
+    return trans
 
 
 def __transformation_matrix(translation : np.ndarray, rotation : np.ndarray) -> np.ndarray:
@@ -135,31 +139,32 @@ def __transformation_matrix(translation : np.ndarray, rotation : np.ndarray) -> 
     Returns:
         np.ndarray: 4x4 translation matrix
     """
-    matrix = np.eye(4)
+    matrix = np.eye(4, dtype=np.float32)
     matrix[:3, 3] =  translation# translation
     matrix[:3, :3] = rotation
     return matrix
 
 
-def __intrinsics_matrix(dimensions : np.ndarray) -> np.ndarray:
+def __intrinsics_matrix(dimensions : np.ndarray = np.array([1280, 720]), focal_length_mm : float = 1.93, fov : float = 84) -> np.ndarray:
     """
-    Defines the camera intrinsics matrics
-    https://github.com/IntelRealSense/realsense-ros/issues/2367
-    Assumes dimensions of 480 by 640
+    Defines the camera intrinsics matrics. Based off pinhole model, assumes focal length is the same in x and y. Assumes dimensions of 720x1280 unless specified.
+     Assumes focal length of 1.93 mm unless specified.
+     Assumes fov 84 degrees unless specified.
 
     Args: 
         dimensions (np.array): dimensions of the image
+        focal_length_mm (float): focal length of camera in mm
+        fov (float): horizontal field of view
     Returns:
         np.ndarray: 3x3 intrinsics matrix
     """
+    h, w = dimensions
+    focal_length_in_pixels = (w / 2) * np.tan( np.deg2rad(fov / 2) )
 
-    focal_length_in_pixels = 382
-    w = 640
-    h = 480
-
+    print(f"width: {w}, height: {h}")
     return np.array([
-        [focal_length_in_pixels, 0, np.round(w / 2)],
-        [0, focal_length_in_pixels, np.round(h / 2)],
+        [focal_length_in_pixels, 0, w/2],
+        [0, focal_length_in_pixels, h/2],
         [0,0,1]
     ])
 
@@ -190,17 +195,16 @@ def main():
 
     # print(calculate_matrix(20, 30, -30, angle_mount=20))
 
-    img = np.ones((480, 640, 3)) * 255
+    img = np.ones((720, 1280, 3)) * 255
     h, w, _ = img.shape
     
     
-    K = __intrinsics_matrix()
+    K = __intrinsics_matrix(dimensions=img.shape[:2])
 
-    translation = calculate_matrix(10, 10, 30, angle_mount=20)
-    print(np.linalg.norm(translation[:3, 3]))
+    translation = calculate_matrix(0, 0, 30)
     print(np.matmul(translation, np.array([0,0,0,1])))
 
-    print(matrix_to_pos(translation))
+
     img = annotate_img(img, translation, K)
 
     cv2.imshow("Annotated Image", img)
