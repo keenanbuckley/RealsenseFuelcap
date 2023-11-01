@@ -9,10 +9,14 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from rclpy.parameter import Parameter
 
+import sys
+
+
 class Realsense_Simulated_Collection(Node):
-    def __init__(self):
+    def __init__(self, n_pictures : int):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
+        self.n_pictures = n_pictures
 
         parameters = list()
         parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
@@ -90,9 +94,17 @@ class Realsense_Simulated_Collection(Node):
 
 
 def main(args=None):
+    py_args = sys.argv[1:]
+    try:
+        n = int(py_args[0])
+        print(f"Collecting {n} pictures")
+    except:
+        print("No arguments detected, collecting 1000 pictures")
+        n = 1000
     rclpy.init(args=args)
 
-    realsense_subscriber = Realsense_Simulated_Collection()
+
+    realsense_subscriber = Realsense_Simulated_Collection(n_pictures=n)
 
     rclpy.spin(realsense_subscriber)
 

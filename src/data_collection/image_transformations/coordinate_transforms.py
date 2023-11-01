@@ -27,18 +27,32 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     Returns:
         np.ndarray: translation matrix from camera to fuel cap
     """
-    t_mount_to_cap = np.array([x, y, z])
-    R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True).as_matrix()
-    H_mount_to_cap = __transformation_matrix(t_mount_to_cap, R_mount_to_cap)                          # rotation
-    
-    
-    t_camera_to_mount = np.zeros(3)#__mount_to_camera_translation()
-    R_camera_to_mount = Rotation.from_euler('y',180+angle_mount,degrees=True).as_matrix()
-    H_camera_to_mount = __transformation_matrix(t_camera_to_mount, R_camera_to_mount)
+    R_cap = Rotation.from_euler('z',angle_cap, degrees=True).as_matrix()
+    H_cap = __transformation_matrix(rotation=R_cap)
 
-    H_cap_to_cam = H_mount_to_cap @ H_camera_to_mount
-    H_cam_to_cap = np.linalg.inv(H_cap_to_cam)
-    return H_cam_to_cap
+    t_cap_to_mount = np.array([x,y,z])
+    R_cap_to_mount = Rotation.from_euler('y',angle_mount+180, degrees=True).as_matrix()
+    H_cap_to_mount = __transformation_matrix(t_cap_to_mount, R_cap_to_mount)
+
+    t_mount_to_cam = __mount_to_camera_translation()
+    H_mount_to_cam = __transformation_matrix(translation=t_mount_to_cam)
+
+    H_cap_to_cam = H_cap @ H_cap_to_mount @ H_mount_to_cam
+    return np.linalg.inv(H_cap_to_cam)
+
+    # t_mount_to_cap = np.array([x, y, z])
+    # R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True).as_matrix()
+    # H_mount_to_cap = __transformation_matrix(t_mount_to_cap, R_mount_to_cap)                          # rotation
+    
+    
+    # # t_camera_to_mount = np.zeros(3)
+    # t_camera_to_mount = __mount_to_camera_translation()
+    # R_camera_to_mount = Rotation.from_euler('y',180+angle_mount,degrees=True).as_matrix()
+    # H_camera_to_mount = __transformation_matrix(t_camera_to_mount, R_camera_to_mount)
+
+    # H_cap_to_cam = H_mount_to_cap @ H_camera_to_mount
+    # H_cam_to_cap = np.linalg.inv(H_cap_to_cam)
+    # return H_cam_to_cap
 
 
 def matrix_to_pos(transformation: np.ndarray) -> List[Union[np.ndarray, np.ndarray]]:
@@ -119,9 +133,9 @@ def __mount_to_camera_translation(cm=True) -> np.ndarray:
     camera origin is located on left camera, inset 3.07 mm
     Default to return translation in centimeters
     """
-    x = 9          # cameras are 18 mm apart
-    y = 4.2 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
-    z = -.37
+    x = -9          # cameras are 18 mm apart
+    y = 42 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
+    z = -3.7
 
     trans = np.array(np.array([x,y,z]), dtype = np.float32)
     if cm:
@@ -129,7 +143,7 @@ def __mount_to_camera_translation(cm=True) -> np.ndarray:
     return trans
 
 
-def __transformation_matrix(translation : np.ndarray, rotation : np.ndarray) -> np.ndarray:
+def __transformation_matrix(translation : np.ndarray = np.zeros(3), rotation : np.ndarray = np.eye(3)) -> np.ndarray:
     """
     assembles transformation matrix from rotation and translation
 
@@ -195,16 +209,18 @@ def main():
 
     # print(calculate_matrix(20, 30, -30, angle_mount=20))
 
-    img = np.ones((720, 1280, 3)) * 255
-    h, w, _ = img.shape
-    
+    # img = np.ones((720, 1280, 3)) * 255
+    img = cv2.imread("/home/mines/mines_ws/data/image.png")
     
     K = __intrinsics_matrix(dimensions=img.shape[:2])
 
-    translation = calculate_matrix(0, 0, 30)
-    print(np.matmul(translation, np.array([0,0,0,1])))
+    translation = calculate_matrix(-6, 19.05, 45.72, angle_mount=-10, angle_cap=20)
+    # print(np.matmul(translation, np.array([0,0,0,1])))
 
 
+    pos, orien = matrix_to_pos(translation)
+    # print(pos)
+    # print(orien)
     img = annotate_img(img, translation, K)
 
     cv2.imshow("Annotated Image", img)
