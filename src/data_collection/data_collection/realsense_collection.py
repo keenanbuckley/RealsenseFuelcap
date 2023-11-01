@@ -49,7 +49,7 @@ class Realsense_Simulated_Collection(Node):
         self.color_img_msg = None
         self.depth_img_msg = None
 
-    def keyboard_listener(self):
+    def save_data(self):
         timestamp = int(1000*time.time())
 
         try:
@@ -84,13 +84,13 @@ class Realsense_Simulated_Collection(Node):
     def color_listener_callback(self, img_msg):
         self.color_img_msg = img_msg
         if not self.depth_img_msg is None:
-            self.keyboard_listener()
+            self.save_data()
         #self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
         if not self.color_img_msg is None:
-            self.keyboard_listener()
+            self.save_data()
 
 
 def main(args=None):
