@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import rclpy
+import time
 from rclpy.node import Node
 from rcl_interfaces.srv import SetParameters
 
@@ -45,6 +46,8 @@ class Realsense_Simulated_Collection(Node):
         self.depth_img_msg = None
 
     def keyboard_listener(self):
+        timestamp = int(1000*time.time())
+
         try:
             image_color = self.bridge.imgmsg_to_cv2(self.color_img_msg, desired_encoding="bgr8")
             image_depth = self.bridge.imgmsg_to_cv2(self.depth_img_msg, desired_encoding="16UC1")
@@ -52,25 +55,38 @@ class Realsense_Simulated_Collection(Node):
             self.get_logger().error(f"Error converting image: {e}")
             return
 
+        # Convert depth image to np array
         image_depth = np.array(image_depth, dtype=np.uint16)
 
         # Save color image
-        cv2.imwrite('data/image.png', image_color)
+        cv2.imwrite(f'data/color/{timestamp}.png', image_color)
 
         # Save depth image
-        np.save('data/depth.npy', image_depth)
+        np.save(f'data/depth/{timestamp}.npy', image_depth)
+
+        # Log the images in image_list.txt
+        with open(f'image_list.txt', 'a') as f:
+            f.write(f'{timestamp}\n')
+
+        # Reset images to None
+        self.color_img_msg = None
+        self.depth_img_msg = None
 
         # Print depth info
-        self.get_logger().info(f"Depth Max: {np.max(image_depth)}, Depth Min: {np.min(image_depth)}")
-        self.get_logger().info(f"Depth Shape: {image_depth.shape[0]}x{image_depth.shape[1]}")
-        self.get_logger().info(f"Depth at center: {image_depth[int(image_depth.shape[0]/2), int(image_depth.shape[1]/2)]}")
+        #self.get_logger().info(f"Depth Max: {np.max(image_depth)}, Depth Min: {np.min(image_depth)}")
+        #self.get_logger().info(f"Depth Shape: {image_depth.shape[0]}x{image_depth.shape[1]}")
+        #self.get_logger().info(f"Depth at center: {image_depth[int(image_depth.shape[0]/2), int(image_depth.shape[1]/2)]}")
 
     def color_listener_callback(self, img_msg):
         self.color_img_msg = img_msg
-        self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
+        if not self.depth_img_msg is None:
+            self.keyboard_listener()
+        #self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
+        if not self.color_img_msg is None:
+            self.keyboard_listener()
 
 
 def main(args=None):
@@ -78,10 +94,7 @@ def main(args=None):
 
     realsense_subscriber = Realsense_Simulated_Collection()
 
-    try:
-        rclpy.spin(realsense_subscriber)
-    except KeyboardInterrupt:
-        realsense_subscriber.keyboard_listener()
+    rclpy.spin(realsense_subscriber)
 
     realsense_subscriber.destroy_node()
     if rclpy.ok():
