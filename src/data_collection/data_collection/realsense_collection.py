@@ -51,6 +51,7 @@ class Realsense_Simulated_Collection(Node):
 
     def keyboard_listener(self):
         timestamp = int(1000*time.time())
+        self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
 
         try:
             image_color = self.bridge.imgmsg_to_cv2(self.color_img_msg, desired_encoding="bgr8")
@@ -69,7 +70,7 @@ class Realsense_Simulated_Collection(Node):
         np.save(f'data/depth/{timestamp}.npy', image_depth)
 
         # Log the images in image_list.txt
-        with open(f'image_list.txt', 'a') as f:
+        with open(f'data/image_list.txt', 'a') as f:
             f.write(f'{timestamp}\n')
 
         # Reset images to None
@@ -85,7 +86,6 @@ class Realsense_Simulated_Collection(Node):
         self.color_img_msg = img_msg
         if not self.depth_img_msg is None:
             self.keyboard_listener()
-        #self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
