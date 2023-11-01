@@ -2,15 +2,32 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.srv import SetParameters
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-
+from rclpy.parameter import Parameter
 
 class Realsense_Simulated_Collection(Node):
     def __init__(self):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
+
+        parameters = list()
+        parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
+        parameters.append(Parameter('depth_module.auto_exposure_roi.top', Parameter.Type.INTEGER, 65))
+        parameters.append(Parameter('depth_module.auto_exposure_roi.bottom', Parameter.Type.INTEGER, 720-65))
+        parameters.append(Parameter('depth_module.auto_exposure_roi.left', Parameter.Type.INTEGER, 75))
+        parameters.append(Parameter('depth_module.auto_exposure_roi.right', Parameter.Type.INTEGER, 1280-75))
+
+        msg = SetParameters.Request()
+        print(msg.get_fields_and_field_types())
+        #msg.parameters = parameters
+
+        #self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
+        #while not self.cli.wait_for_service(timeout_sec=1.0):
+        #    self.get_logger().info('service not available, waiting again...')
+        #self.cli.call_async(msg)
 
         # Update the topic names based on your simulated camera's topics
         self.color_subscription = self.create_subscription(
@@ -58,6 +75,7 @@ class Realsense_Simulated_Collection(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+
     realsense_subscriber = Realsense_Simulated_Collection()
 
     try:

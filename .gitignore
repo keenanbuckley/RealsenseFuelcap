@@ -8,4 +8,4 @@ log
 *.png
 
 # Ignore generated data
-data
+data/
