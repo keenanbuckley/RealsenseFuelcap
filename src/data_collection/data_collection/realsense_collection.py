@@ -13,10 +13,12 @@ import sys
 
 
 class Realsense_Simulated_Collection(Node):
-    def __init__(self, n_pictures : int):
+    def __init__(self, n_pictures : int, rate: int = 1):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
         self.n_pictures = n_pictures
+        self.n_recieved = 0
+        self.rate = rate
 
         parameters = list()
         parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
@@ -49,7 +51,7 @@ class Realsense_Simulated_Collection(Node):
         self.color_img_msg = None
         self.depth_img_msg = None
 
-    def keyboard_listener(self):
+    def save_data(self):
         timestamp = int(1000*time.time())
         self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
 
@@ -73,10 +75,6 @@ class Realsense_Simulated_Collection(Node):
         with open(f'data/image_list.txt', 'a') as f:
             f.write(f'{timestamp}\n')
 
-        # Reset images to None
-        self.color_img_msg = None
-        self.depth_img_msg = None
-
         # Print depth info
         #self.get_logger().info(f"Depth Max: {np.max(image_depth)}, Depth Min: {np.min(image_depth)}")
         #self.get_logger().info(f"Depth Shape: {image_depth.shape[0]}x{image_depth.shape[1]}")
@@ -85,12 +83,26 @@ class Realsense_Simulated_Collection(Node):
     def color_listener_callback(self, img_msg):
         self.color_img_msg = img_msg
         if not self.depth_img_msg is None:
-            self.keyboard_listener()
+            self.n_recieved += 1
+            if self.n_recieved % self.rate == 0:
+                self.save_data()
+            self.color_img_msg = None
+            self.depth_img_msg = None
+        if self.n_recieved / self.rate >= self.n_pictures:
+            # TODO: destroy node  
+            pass  
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
         if not self.color_img_msg is None:
-            self.keyboard_listener()
+            self.n_recieved += 1
+            if self.n_recieved % self.rate == 0:
+                self.save_data()
+            self.color_img_msg = None
+            self.depth_img_msg = None
+        if self.n_recieved / self.rate >= self.n_pictures:
+            # TODO: destroy node  
+            pass  
 
 
 def main(args=None):
@@ -100,11 +112,19 @@ def main(args=None):
         print(f"Collecting {n} pictures")
     except:
         print("No arguments detected, collecting 1000 pictures")
-        n = 1000
+        n = 1
+
+    try: 
+        rate = int(py_args[1])
+        print("Rate set to {rate}")
+    except:
+        print("No rate detected, setting to 1")
+        rate = 1
+
     rclpy.init(args=args)
 
 
-    realsense_subscriber = Realsense_Simulated_Collection(n_pictures=n)
+    realsense_subscriber = Realsense_Simulated_Collection(n_pictures=n, rate=rate)
 
     rclpy.spin(realsense_subscriber)
 
