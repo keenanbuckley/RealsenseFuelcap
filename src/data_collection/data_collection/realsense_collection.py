@@ -7,7 +7,7 @@ from rcl_interfaces.srv import SetParameters
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-from rclpy.parameter import Parameter
+from rclpy.parameter import Parameter, ParameterMsg, ParameterType, ParameterValue
 
 import sys
 
@@ -21,12 +21,12 @@ class Realsense_Simulated_Collection(Node):
         self.rate = rate
 
         parameters = list()
-        #parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
-        #parameters.append(Parameter('depth_module.auto_exposure_roi.top', Parameter.Type.INTEGER, 65))
-        #parameters.append(Parameter('depth_module.auto_exposure_roi.bottom', Parameter.Type.INTEGER, 720-65))
-        #parameters.append(Parameter('depth_module.auto_exposure_roi.left', Parameter.Type.INTEGER, 75))
-        #parameters.append(Parameter('depth_module.auto_exposure_roi.right', Parameter.Type.INTEGER, 1280-75))
-        parameters.append(Parameter('depth_module.exposure', Parameter.Type.INTEGER, exposure))
+        #parameters.append(ParameterMsg(name='depth_module.enable_auto_exposure', value=ParameterValue(type=ParameterType.PARAMETER_BOOL, bool_value=True)))
+        #parameters.append(ParameterMsg(name='depth_module.auto_exposure_roi.top', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=65)))
+        #parameters.append(ParameterMsg(name='depth_module.auto_exposure_roi.bottom', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=720-65)))
+        #parameters.append(ParameterMsg(name='depth_module.auto_exposure_roi.left', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=75)))
+        #parameters.append(ParameterMsg(name='depth_module.auto_exposure_roi.right', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=1280-75)))
+        parameters.append(ParameterMsg(name='depth_module.exposure', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=exposure)))
 
         msg = SetParameters.Request()
         #print(msg.get_fields_and_field_types())
@@ -124,7 +124,7 @@ def main(args=None):
         exposure = int(py_args[2])
         print(f'Exposure set to {exposure}')
     except:
-        print("No exposure detected, setting to 1")
+        print("No exposure detected, setting to 7500")
         exposure = 7500
 
     rclpy.init(args=args)
