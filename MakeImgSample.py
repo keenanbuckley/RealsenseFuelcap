@@ -45,8 +45,8 @@ def move_first_file(src_directory, dst_directory, number_of_samples):
             print(f"An error occurred while moving {src_file_path}: {e}")
 
 # Example usage:
-source_directory = os.path.expanduser('~/mines_ws/--Original file path}')  # Replace with your source directory path
-destination_dir = os.path.expanduser('~/mines_ws/TestNewLoc')  # Replace with your destination directory path
+source_directory = os.path.expanduser('~/mines_ws/data/color')  # Replace with your source directory path
+destination_dir = os.path.expanduser('~/mines_ws/data/process')  # Replace with your destination directory path
 if len(sys.argv) > 1:
     try:
         number_of_samples = int(sys.argv[1])
