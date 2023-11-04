@@ -13,7 +13,7 @@ import sys
 
 
 class Realsense_Simulated_Collection(Node):
-    def __init__(self, n_pictures : int, rate: int = 1):
+    def __init__(self, n_pictures : int, rate: int = 1, exposure = 7500):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
         self.n_pictures = n_pictures
@@ -21,20 +21,21 @@ class Realsense_Simulated_Collection(Node):
         self.rate = rate
 
         parameters = list()
-        parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
-        parameters.append(Parameter('depth_module.auto_exposure_roi.top', Parameter.Type.INTEGER, 65))
-        parameters.append(Parameter('depth_module.auto_exposure_roi.bottom', Parameter.Type.INTEGER, 720-65))
-        parameters.append(Parameter('depth_module.auto_exposure_roi.left', Parameter.Type.INTEGER, 75))
-        parameters.append(Parameter('depth_module.auto_exposure_roi.right', Parameter.Type.INTEGER, 1280-75))
+        #parameters.append(Parameter('depth_module.enable_auto_exposure', Parameter.Type.BOOL, True))
+        #parameters.append(Parameter('depth_module.auto_exposure_roi.top', Parameter.Type.INTEGER, 65))
+        #parameters.append(Parameter('depth_module.auto_exposure_roi.bottom', Parameter.Type.INTEGER, 720-65))
+        #parameters.append(Parameter('depth_module.auto_exposure_roi.left', Parameter.Type.INTEGER, 75))
+        #parameters.append(Parameter('depth_module.auto_exposure_roi.right', Parameter.Type.INTEGER, 1280-75))
+        parameters.append(Parameter('depth_module.exposure', Parameter.Type.INTEGER, exposure))
 
         msg = SetParameters.Request()
-        print(msg.get_fields_and_field_types())
-        #msg.parameters = parameters
+        #print(msg.get_fields_and_field_types())
+        msg.parameters = parameters
 
-        #self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
-        #while not self.cli.wait_for_service(timeout_sec=1.0):
-        #    self.get_logger().info('service not available, waiting again...')
-        #self.cli.call_async(msg)
+        self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
+        while not self.cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.cli.call_async(msg)
 
         # Update the topic names based on your simulated camera's topics
         self.color_subscription = self.create_subscription(
@@ -89,8 +90,7 @@ class Realsense_Simulated_Collection(Node):
             self.color_img_msg = None
             self.depth_img_msg = None
         if self.n_recieved / self.rate >= self.n_pictures:
-            # TODO: destroy node  
-            pass  
+            raise EOFError()
     
     def depth_listener_callback(self, img_msg):
         self.depth_img_msg = img_msg
@@ -101,8 +101,7 @@ class Realsense_Simulated_Collection(Node):
             self.color_img_msg = None
             self.depth_img_msg = None
         if self.n_recieved / self.rate >= self.n_pictures:
-            # TODO: destroy node  
-            pass  
+            raise EOFError()
 
 
 def main(args=None):
@@ -116,17 +115,25 @@ def main(args=None):
 
     try: 
         rate = int(py_args[1])
-        print("Rate set to {rate}")
+        print(f'Rate set to {rate}')
     except:
         print("No rate detected, setting to 1")
         rate = 1
 
+    try: 
+        exposure = int(py_args[2])
+        print(f'Exposure set to {exposure}')
+    except:
+        print("No exposure detected, setting to 1")
+        exposure = 7500
+
     rclpy.init(args=args)
+    realsense_subscriber = Realsense_Simulated_Collection(n_pictures=n, rate=rate, exposure=exposure)
 
-
-    realsense_subscriber = Realsense_Simulated_Collection(n_pictures=n, rate=rate)
-
-    rclpy.spin(realsense_subscriber)
+    try:
+        rclpy.spin(realsense_subscriber)
+    except EOFError:
+        pass
 
     realsense_subscriber.destroy_node()
     if rclpy.ok():
