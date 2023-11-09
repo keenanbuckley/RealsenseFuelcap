@@ -3,9 +3,9 @@ import json, cv2
 import time
 
 
-filepath = "src/data_collection/image_transformations/data/"
 
-def assemble_image(file: str, bounding_box =[(580,215),(870,500)], min_depth: int = 70, max_depth: int = 500, out_width = 100, method: str = "resize"):
+
+def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth: int = 70, max_depth: int = 500, out_width = 100, method: str = "resize", bbox_frmt="xywh"):
     """
     Assembles image data for keypoints model. Crops only image defiend by bounding box, resizes it and concatonates deptha and
     color data into one array
@@ -17,20 +17,27 @@ def assemble_image(file: str, bounding_box =[(580,215),(870,500)], min_depth: in
     out_width (int): out put dimension of the image 
     method (str): method for resizing bounding box, if resize, stretch image, if "expand" expand bounding box to be a square then shrink
     """
+    filepath = "src/data_collection/image_transformations/data/"
+
     assert method in ["resize", "expand"]
-
-
+    assert bbox_frmt in ["xywh", "xyxy"]
 
     depth_data = np.int16(np.load(f"{filepath}{file}.npy"))
     color_data = cv2.imread(f"{filepath}{file}.png")
 
-    (x1,y1),(x2,y2) = bounding_box
+    assert depth_data.shape[:2] == color_data.shape[:2]
+
+    if bbox_frmt == "xyxy":
+        x1,y1,x2,y2 = bounding_box
+        width, height = x2-x1, y2-y1
+    else:
+        x1,y1,width,height = bounding_box
+        x2,y2=x1+width,y1+height
+
 
     if method == "expand":
-        width = x2 - x1
-        height = y2 - y1
-        xc = int(np.mean(x2, x1))
-        yc = int(np.mean(y2, y1))
+        xc = int(np.mean([x2, x1]))
+        yc = int(np.mean([y2, y1]))
         new_dim = max(width, height)
 
         y2 = yc + new_dim // 2
@@ -62,7 +69,7 @@ def assemble_image(file: str, bounding_box =[(580,215),(870,500)], min_depth: in
 def main():
     file = "image"
     t0 = time.time()
-    img = assemble_image(file)
+    img = assemble_image(file, method="expand", out_width=90)
     time_elapes = time.time() - t0
     print(f"Elapsed time: {time_elapes}")
 
@@ -70,9 +77,25 @@ def main():
     cv2.imshow("Depth data", img[:,:,3])
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+    path = "L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\main.json"
+    with open(path, 'r') as f:
+        data = json.load(f)
 
-    # np.save(f"{filepath}{file}.npy", np.ones(dim, dtype=np.int16))
-    # cv2.imwrite(f"{filepath}{file}.jpg", np.zeros(dim, dtype=np.uint8))
+    files = data.keys()
+    max_dims = []
+    for file in files:
+        try:
+            bBox = data[file]["Boundingbox"]
+        except:
+            # print("Error finding bBox in {file}")
+            # print(data[file])
+            continue
+        if len(bBox[0]) == 4:
+            bBox = bBox[0]
+        max_width = np.min(bBox[2:])
+        max_dims.append(max_width)
+    print(np.min(max_dims))
+
 
 
 
