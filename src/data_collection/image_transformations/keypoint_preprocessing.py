@@ -69,74 +69,69 @@ def normalize_image(image_path):
     normalized_image = image.astype('float32') / 255.0
     return normalized_image 
 
-def main():
-    file = "image"
-    # t0 = time.time()
-    # img = assemble_image(file, method="expand", out_width=90)
-    # time_elapes = time.time() - t0
-    # print(f"Elapsed time: {time_elapes}")
 
-    # cv2.imshow("Color_data", img[:,:,:3])
-    # cv2.imshow("Depth data", img[:,:,3])
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
-    file = "1699122639218"
-    image_path = f"{filepath}{file}.png"
-
-
+def clean_data():
     with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\main.json", 'r') as f:
-        data = json.load(f)
-        
-
-    # bbox = file_data["Boundingbox"][0]
-
-    # img = cv2.imread(image_path)
-    # bbox = [round(i) for i in bbox]
-    # print(bbox)
-    # img2 = img.copy()
-    # cv2.rectangle(img2, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color=(0,0,255),thickness=3)
-    # cv2.imshow("Bounding box with xyxy", img2)
-
-    # cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[0]+bbox[2], bbox[1]+bbox[3]), color=(0,0,255),thickness=3)
-    # cv2.imshow("Bounding box with xywh", img)
-
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+        data = json.load(f) 
     
 
     files = data.keys()
 
-    bboxes = {}
+    new_data = {}
+    invalid_data = {}
     for file in files:
-        try:
-            file_data = data[file]
-            file_bbox = file_data["Boundingbox"]
-            
-            if isinstance(file_bbox[0], list):
-                file_bbox = file_bbox[0]
-            
-            file_bbox = file_bbox[:2] + [file_bbox[i] + file_bbox[i+2] for i in range(2)]
-            
-            try:
-                file_bbox = [round(i) for i in file_bbox]
-            except:
-                print("Could not round items in bounding box", file_bbox)
+        file_data = data[file]
 
-            bboxes[file] = file_bbox
+        if "Keypoint" not in file_data.keys() or "Boundingbox" not in file_data.keys():
+            print("Not enough data for", file, file_data.keys())
+            invalid_data[file] = file_data
+            continue
         
-        except:
-            print("Cannot open bbox", file, list(file_data.keys()))
 
+        file_bbox = file_data["Boundingbox"]
+    
+        if isinstance(file_bbox[0], list):
+            file_bbox = file_bbox[0]
+    
+        file_bbox = file_bbox[:2] + [file_bbox[i] + file_bbox[i+2] for i in range(2)]
+        file_bbox = [round(i) for i in file_bbox]
 
+        keypoints = file_data["Keypoint"]
+        
 
-    bbox_str = json.dumps(bboxes, indent=4)
-    with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\\bboxes.json",'w') as f:
+        if len(keypoints) > 0 and isinstance(keypoints[0], list):
+            keypoints = keypoints[0]
+
+        if not len(keypoints) == 20:
+            print("Not enough keypoints in", file, len(keypoints))
+            invalid_data[file] = file_data
+            continue
+
+        keypoints = [round(i) for i in keypoints]
+
+        new_data[file] = {"bbox": file_bbox, "keypoints": keypoints}
+
+    remap_keys = {"Keypoint": "keypoints", "Boundingbox": "bbox"}
+    invalid_data = {file: {remap_keys[old_key]: value for old_key, value in file_data.items()} for file, file_data in invalid_data.items()}
+
+    bbox_str = json.dumps(new_data, indent=4)
+    with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\\new_data.json",'w') as f:
         f.write(bbox_str)
 
-    data_path = "L:\stratom\RealsenseFuelcap\src\data_collection\image_transformations\data\\"
-    files = [file[:-4] for file in os.listdir(data_path) if file[-4:] == ".png" and not file[:5] == "image"]
-    print(files)
+        
+    data_str = json.dumps(invalid_data, indent=4)
+    with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\\bad_data.json",'w') as f:
+        f.write(data_str)
+
+
+ 
+
+
+def main():
+    clean_data()
+
+   
+    
 
 
 if __name__ == "__main__":
