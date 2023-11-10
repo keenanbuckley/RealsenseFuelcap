@@ -83,6 +83,8 @@ RUN apt-get update && apt-get install -y \
   ros-humble-launch-testing-ros \
   ros-humble-rmw-cyclonedds-cpp \
   ros-humble-ament-clang-format \
+  ros-humble-librealsense2* -y \
+  ros-humble-realsense2-* -y \
   && rm -rf /var/lib/apt/lists/* \
   && pip install colcon-mixin \
   && colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml \
@@ -139,7 +141,7 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 
 # Install python libraries for DL
 RUN conda install python=3.8
-RUN conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch
+RUN conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -y
 RUN pip install Pillow==8.4.0
 RUN pip install tqdm
 RUN pip install torchpack
