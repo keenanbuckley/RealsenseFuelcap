@@ -6,7 +6,7 @@ import time, os
 
 filepath = "src/data_collection/image_transformations/data/"
 
-def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth: int = 70, max_depth: int = 500, out_width = 100, method: str = "resize", bbox_frmt="xywh"):
+def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth: int = 70, max_depth: int = 500, out_width = 100, method: str = "resize", bbox_frmt="xyxy"):
     """
     Assembles image data for keypoints model. Crops only image defiend by bounding box, resizes it and concatonates deptha and
     color data into one array
@@ -73,7 +73,6 @@ def normalize_image(image_path):
 def clean_data():
     with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\main.json", 'r') as f:
         data = json.load(f) 
-    
 
     files = data.keys()
 
@@ -84,6 +83,7 @@ def clean_data():
 
         if "Keypoint" not in file_data.keys() or "Boundingbox" not in file_data.keys():
             print("Not enough data for", file, file_data.keys())
+            file_data['reason'] = "missing key"
             invalid_data[file] = file_data
             continue
         
@@ -104,6 +104,7 @@ def clean_data():
 
         if not len(keypoints) == 20:
             print("Not enough keypoints in", file, len(keypoints))
+            file_data['reason'] = "not enough keypoints"
             invalid_data[file] = file_data
             continue
 
@@ -111,10 +112,10 @@ def clean_data():
 
         new_data[file] = {"bbox": file_bbox, "keypoints": keypoints}
 
-    remap_keys = {"Keypoint": "keypoints", "Boundingbox": "bbox"}
+    remap_keys = {"Keypoint": "keypoints", "Boundingbox": "bbox", "reason": "reason"}
     invalid_data = {file: {remap_keys[old_key]: value for old_key, value in file_data.items()} for file, file_data in invalid_data.items()}
 
-    bbox_str = json.dumps(new_data, indent=4)
+    bbox_str = json.dumps(new_data, indent=4).replace('[\n\t','[').replace(",\n            ", ", ").replace("[\n            ", '[').replace("\n        ]", "]")
     with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\\new_data.json",'w') as f:
         f.write(bbox_str)
 
@@ -122,6 +123,8 @@ def clean_data():
     data_str = json.dumps(invalid_data, indent=4)
     with open("L:\stratom\RealsenseFuelcap\src\data_collection\data_reading\combined_data\\bad_data.json",'w') as f:
         f.write(data_str)
+
+    print(f"There are {len(invalid_data.keys())} images missing values")
 
 
  

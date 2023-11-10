@@ -8,7 +8,8 @@
                 225.44
             ]
         ],
-        "keypoints": []
+        "keypoints": [],
+        "reason": "not enough keypoints"
     },
     "1699122800901": {
         "keypoints": [],
@@ -19,7 +20,8 @@
                 236.38,
                 224.76000000000002
             ]
-        ]
+        ],
+        "reason": "not enough keypoints"
     },
     "1699123051349": {
         "keypoints": [
@@ -45,7 +47,8 @@
                 678.67,
                 330.65
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126429130": {
         "bbox": [
@@ -56,7 +59,8 @@
                 237.44
             ]
         ],
-        "keypoints": []
+        "keypoints": [],
+        "reason": "not enough keypoints"
     },
     "1699122918113": {
         "bbox": [
@@ -67,7 +71,8 @@
                 160.17000000000007
             ]
         ],
-        "keypoints": []
+        "keypoints": [],
+        "reason": "not enough keypoints"
     },
     "1699126120741": {
         "bbox": [
@@ -77,7 +82,8 @@
                 189.80999999999995,
                 171.76
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699125959472": {
         "keypoints": [
@@ -103,7 +109,8 @@
                 647.7,
                 403.9
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126116140": {
         "keypoints": [
@@ -129,7 +136,8 @@
                 640.2,
                 467.7
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126158809": {
         "keypoints": [],
@@ -140,7 +148,8 @@
                 169.75,
                 157.57
             ]
-        ]
+        ],
+        "reason": "not enough keypoints"
     },
     "1699126160517": {
         "keypoints": [
@@ -166,7 +175,8 @@
                 773.2,
                 384.4
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126246120": {
         "keypoints": [
@@ -192,7 +202,8 @@
                 623.8,
                 455.38
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126250425": {
         "keypoints": [
@@ -218,7 +229,8 @@
                 606.27,
                 535.13
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126264293": {
         "keypoints": [
@@ -244,7 +256,8 @@
                 636.96,
                 528.12
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699126021745": {
         "keypoints": [
@@ -270,7 +283,8 @@
                 541.9,
                 275.0
             ]
-        ]
+        ],
+        "reason": "missing key"
     },
     "1699122901169": {
         "bbox": [
@@ -281,6 +295,7 @@
                 171.48999999999998
             ]
         ],
-        "keypoints": []
+        "keypoints": [],
+        "reason": "not enough keypoints"
     }
 }
