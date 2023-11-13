@@ -79,7 +79,7 @@ def pos_to_matrix(position: np.ndarray, orientation: np.ndarray) -> np.ndarray:
     return __transformation_matrix(position, rotation)
 
 
-def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray) -> np.ndarray:
+def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray, line_width=5) -> np.ndarray:
     """
     Plots coordinate axis on image
 
@@ -118,7 +118,7 @@ def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray) -> np.
     z = np.array(np.round(z / z[2])[:2], dtype=np.int32)
 
 
-    thickness = 2
+    thickness = line_width
     cv2.line(img, orig, x, (0,0,255), thickness)
     cv2.line(img, orig, y, (0,255,0), thickness)
     cv2.line(img, orig, z, (255,0,0), thickness)
@@ -210,7 +210,7 @@ def main():
     # print(calculate_matrix(20, 30, -30, angle_mount=20))
 
     # img = np.ones((720, 1280, 3)) * 255
-    img = cv2.imread("/home/mines/mines_ws/data/image.png")
+    img = cv2.imread("/home/mines/mines_ws/data/saved_img.png")
     
     K = __intrinsics_matrix(dimensions=img.shape[:2])
 
@@ -227,6 +227,8 @@ def main():
     cv2.waitKey(0)
 
     cv2.imwrite("annotated_img.png", img)
+
+    
 
 
 if __name__ == "__main__":
