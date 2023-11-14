@@ -235,8 +235,6 @@ def __mount_to_camera_translation(cm=True) -> np.ndarray:
     return trans
 
 
-   
-
 def main():
     K = IntrinsicsMatrix()
     pos = [1, 1, 2]
@@ -263,8 +261,6 @@ def main():
     cv2.waitKey(0)
 
     cv2.imwrite("annotated_img.png", img)
-
-    
 
 
 if __name__ == "__main__":
