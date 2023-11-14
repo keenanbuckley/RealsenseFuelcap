@@ -4,9 +4,18 @@ import time, os
 
 
 
-filepath = "src/data_collection/image_transformations/data/"
 
-def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth: int = 70, max_depth: int = 500, out_width = 100, method: str = "resize", bbox_frmt="xyxy"):
+
+def assemble_image(
+        color: np.ndarray,
+        depth: np.ndarray,
+        bounding_box, 
+        min_depth: int = 70, max_depth: int = 500,
+        out_width = 100, 
+        method: str = "resize", 
+        bbox_frmt="xyxy", 
+        filepath="data/"
+        ):
     """
     Assembles image data for keypoints model. Crops only image defiend by bounding box, resizes it and concatonates deptha and
     color data into one array
@@ -22,18 +31,19 @@ def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth
     assert method in ["resize", "expand"]
     assert bbox_frmt in ["xywh", "xyxy"]
 
-    depth_data = np.int16(np.load(f"{filepath}{file}.npy"))
-    color_data = cv2.imread(f"{filepath}{file}.png")
+    # depth_data = np.int16(np.load(f"{filepath}/depth/{file}.npy"))
+    # color_data = cv2.imread(f"{filepath}/color/{file}.png")
 
-    assert depth_data.shape[:2] == color_data.shape[:2]
+    assert depth.shape[:2] == color.shape[:2]
 
     if bbox_frmt == "xyxy":
         x1,y1,x2,y2 = bounding_box
         width, height = x2-x1, y2-y1
-    else:
+    elif bbox_frmt == "xywh":
         x1,y1,width,height = bounding_box
         x2,y2=x1+width,y1+height
-
+    else:
+        raise Exception
 
     if method == "expand":
         xc = int(np.mean([x2, x1]))
@@ -45,13 +55,11 @@ def assemble_image(file: str, bounding_box =[580,215,870-580,500-215], min_depth
         x2 = xc + new_dim // 2
         x1 = xc - new_dim // 2
 
+    depth = depth[y1:y2, x1:x2]
+    color = color[y1:y2, x1:x2]
 
-
-    depth_data = depth_data[y1:y2, x1:x2]
-    color_data = color_data[y1:y2, x1:x2]
-
-    color_resize = cv2.resize(color_data, (out_width, out_width))
-    depth_resize = cv2.resize(depth_data, (out_width, out_width))
+    color_resize = cv2.resize(color, (out_width, out_width))
+    depth_resize = cv2.resize(depth, (out_width, out_width))
 
     depth_mask = np.logical_and(depth_resize < max_depth, depth_resize >= min_depth)
     depth_trim = np.where(depth_mask, depth_resize, min_depth)
@@ -131,7 +139,8 @@ def clean_data():
 
 
 def main():
-    clean_data()
+    # clean_data()
+    pass
 
    
 
