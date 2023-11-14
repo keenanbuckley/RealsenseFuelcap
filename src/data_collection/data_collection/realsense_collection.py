@@ -54,7 +54,9 @@ class Realsense_Simulated_Collection(Node):
 
     def save_data(self):
         timestamp = int(1000*time.time())
-        self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
+        #self.get_logger().info(f'Image of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
+        if int(self.n_recieved / self.rate) % 50 == 0:
+            self.get_logger().info(f'{int(self.n_recieved / self.rate)} of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
 
         try:
             image_color = self.bridge.imgmsg_to_cv2(self.color_img_msg, desired_encoding="bgr8")
