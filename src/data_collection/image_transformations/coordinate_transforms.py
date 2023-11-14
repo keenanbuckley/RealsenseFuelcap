@@ -11,7 +11,153 @@ from scipy.spatial.transform import Rotation
 import cv2
 
 
-def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle_cap: float = 0) -> np.ndarray:
+class TransformationMatrix:
+    """
+    Transformation Matrix Class
+    """
+    def __init__(self, R=np.eye(3), t = np.zeros(3), H: np.ndarray=None) -> None:
+        if H is None:
+            self.matrix = TransformationMatrix.__transformation_matrix(t, R)
+        else:
+            assert H.shape == (4,4)
+            self.matrix = H
+
+    def set_rotation(self, R=np.eye(3)) -> None:
+        assert R.shape == (3,3)
+        self.matrix = TransformationMatrix.__transformation_matrix(self.matrix[:3, 3], R)
+
+    def set_translation(self, t=np.zeros(3)) -> None:
+        assert len(t) == 3
+        self.matrix = TransformationMatrix.__transformation_matrix(t, self.matrix[:3,:3])
+
+    def transform_point(self, pose=np.zeros(3)) -> np.ndarray:
+        assert len(pose) == 3 or len(pose) == 4
+        
+        if len(pose) == 3:
+            pose = np.append(pose, [1])
+        else:
+            assert pose[3] == 1
+        
+        return (self.matrix @ pose)[:3]
+
+    def inverse_transform(self, pose=np.zeros(3)):
+        mat_copy = self.matrix.copy()
+
+        self.matrix = np.linalg.inv(self.matrix)
+        pose = self.transform(pose)
+
+        self.matrix = mat_copy
+
+        return pose
+
+    def as_mat(self):
+        return self.matrix
+    
+    def as_pos_and_quat(self):
+        R = self.matrix[:3,:3]
+        orientation = Rotation.from_matrix(R).as_quat()
+        pose = self.matrix[:3,3]
+        return pose, orientation
+
+    @ staticmethod
+    def transform_transform(H1=None, H2=None):
+        assert H1 is not None
+        if isinstance(H1, list):
+
+            matrix = TransformationMatrix.__transformation_matrix()
+            for mat in H1:
+                assert isinstance(mat, TransformationMatrix)
+                matrix = mat.matrix @ matrix
+        elif isinstance(H1, TransformationMatrix) and isinstance(H2, TransformationMatrix):
+            return H1 @ H2
+        else:
+            raise TypeError("Must input Transformation Matrix or List if transformation matricies")
+
+    @ staticmethod
+    def __transformation_matrix(translation : np.ndarray = np.zeros(3), rotation : np.ndarray = np.eye(3)) -> np.ndarray:
+        """
+        assembles transformation matrix from rotation and translation
+
+        Args:
+            translation (np.ndarray): 3x1 translation matrix
+            rotation (np.ndarray): 3x3 rotation matrix
+        Returns:
+            np.ndarray: 4x4 translation matrix
+        """
+        # ensure rotation matrix is orthonormal
+        assert np.allclose(np.dot(rotation, rotation.T), np.eye(3))
+
+        matrix = np.eye(4, dtype=np.float32)
+        matrix[:3, 3] =  translation# translation
+        matrix[:3, :3] = rotation
+        return matrix
+
+
+class IntrinsicsMatrix:
+    '''
+    Class defining intrinsics matrix
+    contains 2 methods
+    calc_pixels: calculate pixel values from positions
+    calc_position: calculates positon from pixel coordinates
+    '''
+
+    def __init__(self, fov_x = 84, dimensions = (720,1280), degrees=True) -> None:
+        '''
+        Contstructor to create intrinsics matrix
+        Default parameters mirror the d405 camera with 720p resolution
+        args:
+            fov_x: field of view in the horizintal direction of the camera
+            dimensions (tuple): pair o heigh and width of image 
+        '''
+        assert len(dimensions) == 2
+        assert fov_x > 0
+
+        h, w = dimensions
+        cy, cx = h / 2, w / 2
+        
+        if degrees:
+            fov_x = np.deg2rad(fov_x)
+        
+        fl = (w/2) * np.tan(fov_x / 2)
+
+        self.matrix = np.array([
+            [fl,    0,      cx],
+            [0,     fl,     cy],
+            [0,     0,      1 ],
+        ], dtype=np.float32)
+
+        assert self.matrix.shape == (3,3)
+
+    def calc_pixels(self, pose=[0,0,1]):
+        # print(pose)
+        assert len(pose) == 3
+        assert pose[2] > 0
+
+        pose = np.array(pose, dtype=np.float32)
+        coords = self.matrix @ pose
+
+        pixels = (coords / coords[2])[:2]
+        return [round(p) for p in pixels]
+    
+    def calc_position(self, pixels: tuple = (640, 360), depth=1):
+        '''
+        Calculates position based on position and depth
+        If no pixels give, assume default images center
+        If no depth is give, assume the depth is 1 (unit)
+        Ards:
+            pixels (tuple): (x,y) coordinate on the image
+            depth: depth of the point from the camera
+        Returns:
+            np.array: (3x3) position (x,y,z)
+        '''
+        assert len(pixels) == 2
+        assert depth > 0
+
+        pixels = depth * np.array(list(pixels) + [1])
+        return np.linalg.inv(self.matrix) @ pixels
+
+
+def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle_cap: float = 0) -> TransformationMatrix:
     """
     Calculates the transformation matrix from the camera to the fuel cap using the data collection rig
     Assumes fuel cap coordinates to be positive x in the left direction on wall, positive y down, positive z towards camera
@@ -28,58 +174,20 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
         np.ndarray: translation matrix from camera to fuel cap
     """
     R_cap = Rotation.from_euler('z',angle_cap, degrees=True).as_matrix()
-    H_cap = __transformation_matrix(rotation=R_cap)
+    H_cap = TransformationMatrix(R=R_cap)
 
     t_cap_to_mount = np.array([x,y,z])
     R_cap_to_mount = Rotation.from_euler('y',angle_mount+180, degrees=True).as_matrix()
-    H_cap_to_mount = __transformation_matrix(t_cap_to_mount, R_cap_to_mount)
+    H_cap_to_mount = TransformationMatrix(R=R_cap_to_mount, t=t_cap_to_mount)
 
     t_mount_to_cam = __mount_to_camera_translation()
-    H_mount_to_cam = __transformation_matrix(translation=t_mount_to_cam)
+    H_mount_to_cam = TransformationMatrix(t=t_mount_to_cam)
 
-    H_cap_to_cam = H_cap @ H_cap_to_mount @ H_mount_to_cam
-    return np.linalg.inv(H_cap_to_cam)
-
-    # t_mount_to_cap = np.array([x, y, z])
-    # R_mount_to_cap = Rotation.from_euler('z',angle_cap,degrees=True).as_matrix()
-    # H_mount_to_cap = __transformation_matrix(t_mount_to_cap, R_mount_to_cap)                          # rotation
-    
-    
-    # # t_camera_to_mount = np.zeros(3)
-    # t_camera_to_mount = __mount_to_camera_translation()
-    # R_camera_to_mount = Rotation.from_euler('y',180+angle_mount,degrees=True).as_matrix()
-    # H_camera_to_mount = __transformation_matrix(t_camera_to_mount, R_camera_to_mount)
-
-    # H_cap_to_cam = H_mount_to_cap @ H_camera_to_mount
-    # H_cam_to_cap = np.linalg.inv(H_cap_to_cam)
-    # return H_cam_to_cap
+    H_cap_to_cam = H_cap.as_mat() @ H_cap_to_mount.as_mat() @ H_mount_to_cam.as_mat()
+    return TransformationMatrix(H=np.linalg.inv(H_cap_to_cam))
 
 
-def matrix_to_pos(transformation: np.ndarray) -> List[Union[np.ndarray, np.ndarray]]:
-    '''
-    Convert a 4x4 transformation matrix into position and orientation (quaternion)
-
-    Args:
-        transformation (np.ndarray): 4x4 transformation matrix
-
-    Returns:
-        np.ndarray: position (cartesian)
-        np.ndarray: orientation (quaternion)
-    
-    '''
-    position = transformation[:3, 3]
-    rotation = Rotation.from_matrix(transformation[:3, :3])
-    quaternion = rotation.as_quat()
-
-    return [position, quaternion]
-
-
-def pos_to_matrix(position: np.ndarray, orientation: np.ndarray) -> np.ndarray:
-    rotation = Rotation.from_quat(orientation)
-    return __transformation_matrix(position, rotation)
-
-
-def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray, line_width=5) -> np.ndarray:
+def annotate_img(img: np.ndarray, H: TransformationMatrix, K: IntrinsicsMatrix, line_width=5, axis_len = 5) -> np.ndarray:
     """
     Plots coordinate axis on image
 
@@ -91,38 +199,22 @@ def annotate_img(img: np.ndarray, translation: np.ndarray, K: np.ndarray, line_w
     Returns:
         np.ndarray: annotated image
     """
-    axis_len = 5
-    
     # initialize points for coordinate axis
-    origin = np.array([0, 0, 0, 1])
-    x_coord = np.array([axis_len, 0, 0, 1])
-    y_coord = np.array([0, axis_len, 0, 1])
-    z_coord = np.array([0, 0, axis_len, 1])
+    points = [
+        np.array([0, 0, 0, 1]),
+        np.array([axis_len, 0, 0, 1]),
+        np.array([0, axis_len, 0, 1]),
+        np.array([0, 0, axis_len, 1])
+    ]
 
-    # calculate points in 3D space
-    origin = np.matmul(translation, origin)
-    x_coord = np.matmul(translation, x_coord)
-    y_coord = np.matmul(translation, y_coord)
-    z_coord = np.matmul(translation, z_coord)
+    pixels = [K.calc_pixels(H.transform_point(p)) for p in points]
 
-    # calculate points from camera intrinsics
-    orig = np.matmul(K, origin[:3])
-    x = np.matmul(K, x_coord[:3])
-    y = np.matmul(K, y_coord[:3])
-    z = np.matmul(K, z_coord[:3])
-
-    #normalize points
-    orig = np.array(np.round(orig / orig[2])[:2], dtype=np.int32)
-    x = np.array(np.round(x / x[2])[:2], dtype=np.int32)
-    y = np.array(np.round(y / y[2])[:2], dtype = np.int32)
-    z = np.array(np.round(z / z[2])[:2], dtype=np.int32)
-
+    o,x,y,z = pixels
 
     thickness = line_width
-    cv2.line(img, orig, x, (0,0,255), thickness)
-    cv2.line(img, orig, y, (0,255,0), thickness)
-    cv2.line(img, orig, z, (255,0,0), thickness)
-
+    cv2.line(img, o, x, (0,0,255), thickness)
+    cv2.line(img, o, y, (0,255,0), thickness)
+    cv2.line(img, o, z, (255,0,0), thickness)
 
     return img
 
@@ -137,90 +229,34 @@ def __mount_to_camera_translation(cm=True) -> np.ndarray:
     y = 42 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
     z = -3.7
 
-    trans = np.array(np.array([x,y,z]), dtype = np.float32)
+    trans = np.array([x,y,z], dtype = np.float32)
     if cm:
         return trans / 10
     return trans
 
 
-def __transformation_matrix(translation : np.ndarray = np.zeros(3), rotation : np.ndarray = np.eye(3)) -> np.ndarray:
-    """
-    assembles transformation matrix from rotation and translation
-
-    Args:
-        translation (np.ndarray): 3x1 translation matrix
-        rotation (np.ndarray): 3x3 rotation matrix
-    Returns:
-        np.ndarray: 4x4 translation matrix
-    """
-    matrix = np.eye(4, dtype=np.float32)
-    matrix[:3, 3] =  translation# translation
-    matrix[:3, :3] = rotation
-    return matrix
-
-
-def __intrinsics_matrix(dimensions : np.ndarray = np.array([1280, 720]), focal_length_mm : float = 1.93, fov : float = 84) -> np.ndarray:
-    """
-    Defines the camera intrinsics matrics. Based off pinhole model, assumes focal length is the same in x and y. Assumes dimensions of 720x1280 unless specified.
-     Assumes focal length of 1.93 mm unless specified.
-     Assumes fov 84 degrees unless specified.
-
-    Args: 
-        dimensions (np.array): dimensions of the image
-        focal_length_mm (float): focal length of camera in mm
-        fov (float): horizontal field of view
-    Returns:
-        np.ndarray: 3x3 intrinsics matrix
-    """
-    h, w = dimensions
-    focal_length_in_pixels = (w / 2) * np.tan( np.deg2rad(fov / 2) )
-
-    print(f"width: {w}, height: {h}")
-    return np.array([
-        [focal_length_in_pixels, 0, w/2],
-        [0, focal_length_in_pixels, h/2],
-        [0,0,1]
-    ])
-
-
-
+   
 
 def main():
-    # position, quaternion = matrix_to_pos(np.array([
-    #     [1, 0, 0, 1],
-    #     [0, 1, 0, 2],
-    #     [0, 0, 1, 3],
-    #     [0, 0, 0, 1],
-    # ]))
-    # # print(position)
-    # # print(quaternion)
-    # assert np.array_equal(position, np.array([1, 2, 3]))
-    # assert np.array_equal(quaternion, np.array([0, 0, 0, 1]))
+    K = IntrinsicsMatrix()
+    pos = [1, 1, 2]
+    pixels = (0,0)
+    depth = 3
+    target_pos = [-3.33183754, -1.87415862,  3.]
+    tol = 1e-5
 
-    # rotation = np.eye(3)
-    # position = np.transpose(np.ones(3))
-    # H = __transformation_matrix(position, rotation)
-    # assert np.array_equal(H, np.array([
-    #     [1, 0, 0, 1],
-    #     [0, 1, 0, 1],
-    #     [0, 0, 1, 1],
-    #     [0, 0, 0, 1],
-    # ]))
+    assert K.calc_pixels() == [640, 360]
+    assert K.calc_pixels(pos) == [928, 648]
+    assert [int(i) for i in list(K.calc_position())] == [0, 0, 1]
+    pos = K.calc_position(pixels, depth)
+    assert np.sum(pos - np.array(target_pos)) < tol
 
-    # print(calculate_matrix(20, 30, -30, angle_mount=20))
 
-    # img = np.ones((720, 1280, 3)) * 255
-    img = cv2.imread("/home/mines/mines_ws/data/saved_img.png")
+    img = cv2.imread("data//saved_img.png")
     
-    K = __intrinsics_matrix(dimensions=img.shape[:2])
-
+    K = IntrinsicsMatrix()
     translation = calculate_matrix(-6, 19.05, 45.72, angle_mount=-10, angle_cap=20)
-    # print(np.matmul(translation, np.array([0,0,0,1])))
-
-
-    pos, orien = matrix_to_pos(translation)
-    # print(pos)
-    # print(orien)
+    pos, orien = translation.as_pos_and_quat()
     img = annotate_img(img, translation, K)
 
     cv2.imshow("Annotated Image", img)
