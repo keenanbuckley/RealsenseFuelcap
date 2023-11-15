@@ -12,3 +12,4 @@ log
 # Ignore generated data
 drive_data
 posefromkeypoints
+data/image_list.txt
