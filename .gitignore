@@ -8,10 +8,11 @@ atch.sh
 build
 install
 log
-*.png
-*.npy
 
 # Ignore generated data
+*.png
+*.npy
 drive_data
 posefromkeypoints
 data/image_list.txt
+models/
