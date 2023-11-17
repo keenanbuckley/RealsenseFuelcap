@@ -1,14 +1,20 @@
+.vscode
+
 # Ignore Docker startup script which varies depending on system configuration
 startup.sh
+startup_cpu.sh
+startup_cuda.sh
 atch.sh
 
 # Ignore ROS package build artifacts
 build
 install
 log
-*.png
-*.npy
 
 # Ignore generated data
+*.png
+*.npy
 drive_data
 posefromkeypoints
+data/image_list.txt
+models/
