@@ -1,5 +1,7 @@
 # Ignore Docker startup script which varies depending on system configuration
 startup.sh
+startup_cpu.sh
+startup_cuda.sh
 atch.sh
 
 # Ignore ROS package build artifacts
