@@ -13,7 +13,7 @@ class ImagePublisher(Node):
 
     def publish_image(self):
         # Load the image using PIL
-        pil_image = PILImage.open('~/mines_ws/RealsenseFuelcap/src/data_collection/data_collection/displayRviz/exampleImage.png') 
+        pil_image = PILImage.open('exampleImage.png')
         # Convert the PIL image to a ROS2 Image message
         img_msg = Image()
         img_msg.header.stamp = self.get_clock().now().to_msg()
