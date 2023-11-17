@@ -13,7 +13,7 @@ class ImagePublisher(Node):
 
     def publish_image(self):
         # Load the image using PIL
-        pil_image = PILImage.open('exampleImage.png')
+        pil_image = PILImage.open('exampleImage.jpeg')
 
         print("Image format:", pil_image.format)
         print("Image mode:", pil_image.mode)
