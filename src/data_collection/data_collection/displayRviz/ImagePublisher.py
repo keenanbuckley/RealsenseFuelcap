@@ -14,6 +14,11 @@ class ImagePublisher(Node):
     def publish_image(self):
         # Load the image using PIL
         pil_image = PILImage.open('exampleImage.png')
+
+        print("Image format:", pil_image.format)
+        print("Image mode:", pil_image.mode)
+        print("Image size:", pil_image.size)
+
         # Convert the PIL image to a ROS2 Image message
         img_msg = Image()
         img_msg.header.stamp = self.get_clock().now().to_msg()
