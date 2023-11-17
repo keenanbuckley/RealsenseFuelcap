@@ -40,7 +40,7 @@ class DisplayPng(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    realsense_subscriber = SimulatedRealsense()
+    realsense_subscriber = DisplayPng()
 
     rclpy.spin(realsense_subscriber)
 
