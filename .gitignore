@@ -10,6 +10,7 @@ atch.sh
 build
 install
 log
+__pycache__
 
 # Ignore generated data
 *.png
