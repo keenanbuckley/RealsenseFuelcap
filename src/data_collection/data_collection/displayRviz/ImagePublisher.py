@@ -24,6 +24,8 @@ class ImagePublisher(Node):
         img_msg.header.stamp = self.get_clock().now().to_msg()
         img_msg.height = pil_image.height
         img_msg.width = pil_image.width
+        print("Image height:", pil_image.height)
+        print("Image width:", pil_image.width)
         img_msg.encoding = 'rgb8'  # Adjust if your image has a different encoding
         img_msg.step = img_msg.width * 3  # Assuming 3 channels for an RGB image
 
