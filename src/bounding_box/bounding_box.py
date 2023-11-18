@@ -19,18 +19,13 @@ class BBoxModel():
         return bbox, score
 
     def find_bbox(self, image):
-        image = self.transform(image)
-        image = image.to(self.device)
+        image = self.transform(image).to(self.device)
         with torch.no_grad():
             prediction = self.model([image])[0]
         return self.return_prediction(prediction)
 
     def find_bbox_many(self, images):
-        for image in images:
-            image = self.transform(image)
-        images = [tensor.to(self.device) for tensor in images]
+        images = [self.transform(tensor).to(self.device) for tensor in images]
         with torch.no_grad():
-            predictions = self.model(image)
-        for pred in predictions:
-            pred = self.return_prediction(pred)
-        return predictions
+            predictions = list(self.model(images))
+        return [self.return_prediction(pred) for pred in predictions]
