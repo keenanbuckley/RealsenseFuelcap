@@ -6,10 +6,13 @@
 
 from typing import List, Union
 
+import json
 import numpy as np
 from scipy.spatial.transform import Rotation
 import cv2
 
+with open('./data/camera_intrinsics.json', 'r') as f:
+    camera_instrinsics = dict(json.load(f))
 
 class TransformationMatrix:
     """
@@ -133,9 +136,14 @@ class IntrinsicsMatrix:
         
         fl = (w/2) / np.tan(fov_x / 2)
 
+        fx = float(camera_instrinsics['rectified.1.fx'])
+        fy = float(camera_instrinsics['rectified.1.fy'])
+        cx = float(camera_instrinsics['rectified.1.ppx'])
+        cy = float(camera_instrinsics['rectified.1.ppy'])
+
         self.matrix = np.array([
-            [fl,    0,      cx],
-            [0,     fl,     cy],
+            [fx,    0,      cx],
+            [0,     fy,     cy],
             [0,     0,      1 ],
         ], dtype=np.float32)
 
@@ -199,14 +207,23 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     if units == "cm":
         x,y,z = [i * 10 for i in [x,y,z]]
 
-    # shrink y by heigh of the mount, which is 1.25 inches
+    # shrink y by height of the mount, which is 1.25 inches
     y -= 25.4 * (1.25 + 0.25)
+
+    # world2left transformation matrix
+    world2left = np.array(
+        [[float(camera_instrinsics['world2left_rot.x.x']), float(camera_instrinsics['world2left_rot.x.y']), float(camera_instrinsics['world2left_rot.x.z'])],
+        [float(camera_instrinsics['world2left_rot.y.x']), float(camera_instrinsics['world2left_rot.y.y']), float(camera_instrinsics['world2left_rot.y.z'])],
+        [float(camera_instrinsics['world2left_rot.z.x']), float(camera_instrinsics['world2left_rot.z.y']), float(camera_instrinsics['world2left_rot.z.z'])],]
+    )
     
     H = TransformationMatrix()
     H = H * Rotation.from_euler('z', -angle_cap, degrees=True).as_matrix()
     H = H * np.array([x,y,z])
     H = H * Rotation.from_euler('y', angles=180+angle_mount, degrees=True).as_matrix()
     H = H * __mount_to_camera_translation()
+    H = H * world2left
+
 
     return H.invert()    
 
@@ -251,9 +268,9 @@ def __mount_to_camera_translation(units: str="mm") -> np.ndarray:
     """
     __check_inits(units)
     # return np.zeros(3)
-    x = -9          # cameras are 18 mm apart
-    y = -42 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
-    z = 10.95
+    x = float(camera_instrinsics['baseline'])/2     # cameras are 18 mm apart
+    y = -42 / 2                                     # cameras are located on middle of camera in y, and cam is 42 mm tall
+    z = 10.95                                       # z distance between mounting hole and z = 0 on depth module
 
     trans = np.array([x,y,z], dtype = np.float32)
     

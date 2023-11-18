@@ -12,7 +12,7 @@ if __name__ == "__main__":
         name = row["image_name"]
         x = row["dX"]
         y = row["dY"]
-        z = row["dZ"]
+        z = row["dZ"] - (25 / 25.4)
         angle_mount = row["angle_mount"]
         angle_cap = row["angle_cap"]
         
