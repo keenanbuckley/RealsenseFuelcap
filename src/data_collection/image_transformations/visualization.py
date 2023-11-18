@@ -16,11 +16,22 @@ if __name__ == "__main__":
         angle_mount = row["angle_mount"]
         angle_cap = row["angle_cap"]
         
-        H = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap)
+        H_u_min = calculate_matrix(x-0.25,y,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
+        H_v_min = calculate_matrix(x,y-0.25,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
+        H_v_max = calculate_matrix(x,y+0.25,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
+        H_u_max = calculate_matrix(x+0.25,y,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
+        H = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
         K = IntrinsicsMatrix()
-        print(name)
         img = cv2.imread(f"data/GroundTruth/color/{name}.png")
 
+        cv2.rectangle(img,(img.shape[1]//2,0),(img.shape[1]//2,img.shape[0]),(0,0,0), thickness=2)
+        cv2.rectangle(img,(0,img.shape[0]//2),(img.shape[1],img.shape[0]//2),(0,0,0), thickness=2)
+        cv2.circle(img,(img.shape[1]//2,img.shape[0]//2), 6, (0,0,0), -1)
+        cv2.circle(img,(img.shape[1]//2,img.shape[0]//2), 3, (255,255,255), -1)
+        #img = annotate_img(img, H_u_min, K, axis_len=5)
+        #img = annotate_img(img, H_v_min, K, axis_len=5)
+        #img = annotate_img(img, H_u_max, K, axis_len=5)
+        #img = annotate_img(img, H_v_max, K, axis_len=5)
         img = annotate_img(img, H, K, axis_len=30)
         print(f"Displaying {name}: ({x}, {y}, {z}), mount={angle_mount}, cap={angle_cap}")
         cv2.imshow("Annotated Image", img)
