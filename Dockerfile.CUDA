@@ -146,6 +146,8 @@ RUN pip install Pillow
 RUN pip install tqdm
 RUN pip install torchpack
 RUN pip install numba
+RUN pip install opencv-python
+RUN pip install pandas
 
 # Jupyter Notebook
 RUN pip install notebook ipykernel
