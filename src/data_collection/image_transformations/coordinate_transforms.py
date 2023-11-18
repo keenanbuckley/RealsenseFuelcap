@@ -131,7 +131,7 @@ class IntrinsicsMatrix:
         if degrees:
             fov_x = np.deg2rad(fov_x)
         
-        fl = (w/2) * np.tan(fov_x / 2)
+        fl = (w/2) / np.tan(fov_x / 2)
 
         self.matrix = np.array([
             [fl,    0,      cx],
@@ -211,33 +211,6 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     return H.invert()    
 
 
-
-    
-    
-    # H = TransformationMatrix()
-    # H = H * t_mount_to_cam
-    # H = H * R_mount_to_cam
-    # H = H * t_wall_to_mount
-    # H = H * R_cap_to_wall
-    # return H
-
-
-   
-    # R_cap = Rotation.from_euler('z',angle_cap, degrees=True).as_matrix()
-    # H_cap = TransformationMatrix(R=R_cap)
-
-    # t_cap_to_mount = np.array([x,y,z])
-
-    # R_cap_to_mount = Rotation.from_euler('y',angle_mount+180, degrees=True).as_matrix()
-    # H_cap_to_mount = TransformationMatrix(R=R_cap_to_mount, t=t_cap_to_mount)
-
-    # t_mount_to_cam = __mount_to_camera_translation()
-    # H_mount_to_cam = TransformationMatrix(t=t_mount_to_cam)
-
-    # H_cap_to_cam = H_cap.as_mat() @ H_cap_to_mount.as_mat() @ H_mount_to_cam.as_mat()
-    # return TransformationMatrix(H=np.linalg.inv(H_cap_to_cam))
-
-
 def annotate_img(img: np.ndarray, H: TransformationMatrix, K: IntrinsicsMatrix, line_width=3, axis_len = 30) -> np.ndarray:
     """
     Plots coordinate axis on image
@@ -278,9 +251,9 @@ def __mount_to_camera_translation(units: str="mm") -> np.ndarray:
     """
     __check_inits(units)
     # return np.zeros(3)
-    x = 9          # cameras are 18 mm apart
+    x = -9          # cameras are 18 mm apart
     y = -42 / 2          # cameras are located on middle of camera in y, and cam is 42 mm tall
-    z = 3.7
+    z = 10.95
 
     trans = np.array([x,y,z], dtype = np.float32)
     
