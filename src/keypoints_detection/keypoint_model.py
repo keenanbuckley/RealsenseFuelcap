@@ -17,25 +17,27 @@ import numpy as np
 import cv2 
 
 from transformations import *
-from image_transformations.coordinate_transforms import IntrinsicsMatrix
+from image_transformations.coordinate_transforms import IntrinsicsMatrix, annotate_img, TransformationMatrix
+from bounding_box import BBoxModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device ="cpu"
 """
 Convert axis-angle representation to a 3x3 rotation matrix
 """
 class Rodrigues(torch.autograd.Function):
     @staticmethod
-    def forward(self, inp, device):
+    def forward(self, inp):
         pose = inp.detach().cpu().numpy()
         rotm, part_jacob = cv2.Rodrigues(pose)
-        self.jacob = torch.Tensor(np.transpose(part_jacob)).contiguous().to(device)
-        rotation_matrix = torch.Tensor(rotm.ravel()).to(device)
-        return rotation_matrix.view(3, 3)
+        self.jacob = torch.Tensor(np.transpose(part_jacob)).contiguous()
+        rotation_matrix = torch.Tensor(rotm.ravel())
+        return rotation_matrix.view(3,3)
 
     @staticmethod
     def backward(self, grad_output):
         grad_output = grad_output.view(1,-1)
-        grad_input = torch.mm(grad_output, self.jacob).to(device)
+        grad_input = torch.mm(grad_output, self.jacob)
         grad_input = grad_input.view(-1)
         return grad_input
 
@@ -60,6 +62,7 @@ class keypoint_model:
         self.model.eval()
 
     def predict(self, image, bbox):
+        
         # convert to PIL image
         image = Image.fromarray(image)
 
@@ -116,8 +119,9 @@ class keypoint_model:
             heatmap = heatmap + self.keypoints[i, :, :]
         return heatmap
     
-    def predict_keypoints(self, K, keypoints3D):
-        K = torch.from_numpy(K).to(self.device)
+    def predict_keypoints(self, K : np.ndarray, keypoints3D):
+        self.device = device
+        K = torch.from_numpy(K.astype(np.double)).to(self.device)
         keypoints3D = torch.from_numpy(keypoints3D).to(self.device)
         r = torch.rand(3, requires_grad=True, device=self.device) # rotation in axis-angle representation
         t = torch.rand(3 ,requires_grad=True, device=self.device)
@@ -135,7 +139,7 @@ class keypoint_model:
         loss_old = 1e10
         while not converged:
             optimizer.zero_grad()
-            R = rodrigues(r, self.device)
+            R = rodrigues(r)
             k3d = torch.matmul(R, keypoints3D.transpose(1,0) + t[:, None])
             proj_keypoints = (k3d / k3d[2])[0:2,:].transpose(1,0)
             
@@ -147,7 +151,7 @@ class keypoint_model:
             else:
                 loss_old = err.detach()
 
-        R = rodrigues(r, self.device)
+        R = rodrigues(r)
         return R[0].detach(), t.detach()
 
 
@@ -156,31 +160,47 @@ class keypoint_model:
 def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.json"):
     import json, random
 
-    with open(path, 'r') as f:
-        data = dict(json.load(f))
+    # with open(path, 'r') as f:
+    #     data = dict(json.load(f))
     
-    test_image = random.choice(list(data.keys()))
-    img_data = data[test_image]
+    # test_image = random.choice(list(data.keys()))
+
+    img_dir = "data/GroundTruth/color"
+    test_image = random.choice(os.listdir(img_dir))
+    print(test_image)
+    # img_data = data[test_image]
     
-    img_dir = "data/RealWorldBboxData/color"
     img = cv2.imread(f"{img_dir}/{test_image}.png")
 
-    bbox = img_data["bbox"]
+    bboxModel = BBoxModel("models/bbox_net_trained.pth")
+    pilimg = Image.fromarray(img)
+    bbox, score = bboxModel.find_bbox(pilimg)
+    bbox = bbox.numpy()
+
+    # bbox = img_data["bbox"]
     original = img.copy()
 
     t0 = time.time()
     predicted_keypoints = model.predict(img, bbox)
     print(f"Elapsed time: {time.time() - t0:.3f}, {test_image}")
     heatmap = model.merge_heatmaps()
-    K = np.array([
-        [635.722,   0.,   630.956],
-        [  0.,    635.722, 364.251],
-        [  0.,      0.,      1.   ]
-    ])
-
+    # K = np.array([
+    #     [635.722,   0.,   630.956],
+    #     [  0.,    635.722, 364.251],
+    #     [  0.,      0.,      1.   ]
+    # ])
+    K = IntrinsicsMatrix()
     S = np.load('kpt.npy')
-    pose = model.predict_keypoints(K, S)
+    pose = model.predict_keypoints(K.matrix, S)
     print(pose)
+    rotation = pose[0].numpy()
+    translation = pose[1].numpy()
+    print(K.calc_pixels(translation))
+    rotation, _ = cv2.Rodrigues(rotation)
+    print(rotation)
+    H = TransformationMatrix(R = rotation, t = translation)
+    annotate_img(original, H, K)
+
     keypoints = img_data["keypoints"]
 
     predicted = original.copy()
@@ -207,7 +227,7 @@ def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.j
     # 89mm
 
 
-    dist_between(predicted_keypoints, keypoints)
+    # dist_between(predicted_keypoints, keypoints)
     heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))
     heatmap = (255 * heatmap).astype(np.uint8)
     h, w = heatmap.shape
