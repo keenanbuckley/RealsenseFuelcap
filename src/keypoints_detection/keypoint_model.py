@@ -10,13 +10,37 @@ from torchvision import transforms
 from PIL import Image
 import os
 #from os import join
+from hourglass import hg
 from time import time
 import numpy as np
 import cv2 
+
 from transformations import *
+from ..image_transformations.coordinate_transforms import IntrinsicsMatrix
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+"""
+Convert axis-angle representation to a 3x3 rotation matrix
+"""
+class Rodrigues(torch.autograd.Function):
+    @staticmethod
+    def forward(self, inp, device):
+        pose = inp.detach().cpu().numpy()
+        rotm, part_jacob = cv2.Rodrigues(pose)
+        self.jacob = torch.Tensor(np.transpose(part_jacob)).contiguous().to(device)
+        rotation_matrix = torch.Tensor(rotm.ravel()).to(device)
+        return rotation_matrix.view(3, 3)
+
+    @staticmethod
+    def backward(self, grad_output):
+        grad_output = grad_output.view(1,-1)
+        grad_input = torch.mm(grad_output, self.jacob).to(device)
+        grad_input = grad_input.view(-1)
+        return grad_input
+
+rodrigues = Rodrigues.apply
 
 
-    
 class keypoint_model:
     def __init__(self) -> None:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,6 +53,7 @@ class keypoint_model:
 
         self.model = torch.load('./models/keypoints_detection.pth')
 
+        self.keypoints_2d = None
         self.keypoints = None
         self.item = None
         self.model.eval()
@@ -49,20 +74,25 @@ class keypoint_model:
         
         self.keypoints = np.array(keypoints_prediction[0].cpu())[0,:,:,:]
         
+    
         x_coords = []
         y_coords = []
+        confs = []
         for i in range(10):
             # Find the flattened index of the maximum value
             max_index = np.argmax(self.keypoints[i, :, :])
 
             # Convert the flattened index to row and column indices
             y, x = np.unravel_index(max_index, self.keypoints[i, :, :].shape)
+            conf = np.max(self.keypoints[i,:,:])
 
             x_coords.append(x)
             y_coords.append(y)
-
+            confs.append(conf)
+        
         y_coords = np.array(y_coords)
         x_coords = np.array(x_coords)
+        confs = np.array(confs)
 
         center_x, center_y = self.item['center']
         width = self.item['width']
@@ -73,7 +103,8 @@ class keypoint_model:
         y_coords = 4*y_coords * scale + center_y - width // 2
         x_coords = 4*x_coords * scale + center_x - width // 2
 
-        return np.array([x_coords, y_coords]).T      
+        self.keypoints_2d = np.array([x_coords, y_coords, confs]).T 
+        return self.keypoints_2d 
 
 
     def merge_heatmaps(self):
@@ -83,12 +114,46 @@ class keypoint_model:
         for i in range(10):
             heatmap = heatmap + self.keypoints[i, :, :]
         return heatmap
+    
+    def predict_keypoints(self, K, keypoints3D):
+        K = torch.from_numpy(K).to(self.device)
+        keypoints3D = torch.from_numpy(keypoints3D).to(self.device)
+        r = torch.rand(3, requires_grad=True, device=self.device) # rotation in axis-angle representation
+        t = torch.rand(3 ,requires_grad=True, device=self.device)
+        d = torch.from_numpy(self.keypoints_2d[:,2]).sqrt()[:, None].to(self.device)
+
+        # print(d.shape)
+
+        keypoints2d = torch.from_numpy(np.c_[self.keypoints_2d[:, :2], np.ones((self.keypoints_2d.shape[0], 1))].T).to(self.device)
+
+        norm_keypoints_2d = torch.matmul(K.inverse(), keypoints2d).t()
+        optimizer = torch.optim.Adam([r,t], lr=1e-2)
+
+        converged = False
+        rel_tol = 1e-7
+        loss_old = 1e10
+        while not converged:
+            optimizer.zero_grad()
+            R = rodrigues(r, self.device)
+            k3d = torch.matmul(R, keypoints3D.transpose(1,0) + t[:, None])
+            proj_keypoints = (k3d / k3d[2])[0:2,:].transpose(1,0)
+            
+            err = torch.norm(((norm_keypoints_2d[:, :2] - proj_keypoints) * d)**2, 'fro')
+            err.backward()
+            optimizer.step()
+            if abs(err.detach() - loss_old) / loss_old < rel_tol:
+                break
+            else:
+                loss_old = err.detach()
+
+        R = rodrigues(r, self.device)
+        return R[0].detach(), t.detach()
 
 
-def test_model(model, path="./data/RealWorldBboxData/test_data.json"):
+
+
+def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.json"):
     import json, random
-
-
 
     with open(path, 'r') as f:
         data = dict(json.load(f))
@@ -106,8 +171,15 @@ def test_model(model, path="./data/RealWorldBboxData/test_data.json"):
     predicted_keypoints = model.predict(img, bbox)
     print(f"Elapsed time: {time.time() - t0:.3f}, {test_image}")
     heatmap = model.merge_heatmaps()
+    # K = np.array([
+    #     [635.722,   0.,   630.956],
+    #     [  0.,    635.722, 364.251],
+    #     [  0.,      0.,      1.   ]
+    # ])
 
-
+    # S = np.load('kpt.npy')
+    # pose = model.predict_keypoints(K, S)
+    # print(pose)
     keypoints = img_data["keypoints"]
 
     predicted = original.copy()
@@ -124,15 +196,17 @@ def test_model(model, path="./data/RealWorldBboxData/test_data.json"):
         kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
         cv2.circle(original, kp, 5, 0x0000FF, -1)
         
-        text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
-        text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
+        # text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
+        # text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
         cv2.circle(predicted, (int(predicted_keypoints[i, 0]), int(predicted_keypoints[i, 1])), 5, 0x00FF00, -1)
         cv2.rectangle(predicted, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), 0x00FFFF, 3)
-        cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
-        cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+        # cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+        # cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+
+    # 89mm
 
 
-    
+    dist_between(predicted_keypoints, keypoints)
     heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))
     heatmap = (255 * heatmap).astype(np.uint8)
     h, w = heatmap.shape
@@ -145,10 +219,21 @@ def test_model(model, path="./data/RealWorldBboxData/test_data.json"):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+def dist_between(predicted_keypoints, keypoints):
+    print(f"Labeled Kaypoings:")
+    for i in range(10):
+        print(keypoints[2*i], keypoints[2*i+1])
+    keypoints = np.array(predicted_keypoints).reshape(-1,2)
+    for i in range(10):
+        print(keypoints[i,:])
+    print(f"predicted keypoints:")
+    for i in range(10):
+        print(predicted_keypoints[i, :2])
+
 if __name__ == "__main__":
     import time
     model = keypoint_model()
-    for i in range(10):
+    for i in range(1):
         test_model(model)
         
         # break
