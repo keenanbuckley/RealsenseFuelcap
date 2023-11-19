@@ -1,8 +1,9 @@
 from __future__ import division
 from __future__ import print_function
 
-
-
+import sys
+from os.path import dirname
+sys.path.append(f'{dirname(__file__)}/..')
 
 import torch
 from torchvision import transforms
@@ -16,7 +17,7 @@ import numpy as np
 import cv2 
 
 from transformations import *
-from ..image_transformations.coordinate_transforms import IntrinsicsMatrix
+from image_transformations.coordinate_transforms import IntrinsicsMatrix
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 """
@@ -171,15 +172,15 @@ def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.j
     predicted_keypoints = model.predict(img, bbox)
     print(f"Elapsed time: {time.time() - t0:.3f}, {test_image}")
     heatmap = model.merge_heatmaps()
-    # K = np.array([
-    #     [635.722,   0.,   630.956],
-    #     [  0.,    635.722, 364.251],
-    #     [  0.,      0.,      1.   ]
-    # ])
+    K = np.array([
+        [635.722,   0.,   630.956],
+        [  0.,    635.722, 364.251],
+        [  0.,      0.,      1.   ]
+    ])
 
-    # S = np.load('kpt.npy')
-    # pose = model.predict_keypoints(K, S)
-    # print(pose)
+    S = np.load('kpt.npy')
+    pose = model.predict_keypoints(K, S)
+    print(pose)
     keypoints = img_data["keypoints"]
 
     predicted = original.copy()
