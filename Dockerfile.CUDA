@@ -132,15 +132,8 @@ RUN apt-get install build-essential g++ gcc -y
 RUN apt-get install libgl1-mesa-glx libglib2.0-0 -y
 RUN apt-get install openmpi-bin openmpi-common libopenmpi-dev libgtk2.0-dev -y
 
-# Install miniconda
-ENV CONDA_DIR=/opt/conda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
-     /bin/bash ~/miniconda.sh -b -p $CONDA_DIR
-# Put conda in path so we can use conda activate
-ENV PATH=$CONDA_DIR/bin:$PATH
 
 # Install python libraries for DL
-RUN conda install python=3.10
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 RUN pip install Pillow
 RUN pip install tqdm
