@@ -13,7 +13,7 @@ from rclpy.parameter import Parameter, ParameterMsg, ParameterType, ParameterVal
 import sys
 import os
 
-class Realsense_Simulated_Collection(Node):
+class RealsenseCollection(Node):
     def __init__(self, exposure: int = 7500,  n_pictures: int = 1, rate: int = 1):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
@@ -141,7 +141,7 @@ def main(args=None):
     '''
 
     rclpy.init(args=args)
-    realsense_subscriber = Realsense_Simulated_Collection(exposure=exposure)
+    realsense_subscriber = RealsenseCollection(exposure=exposure)
 
     try:
         rclpy.spin(realsense_subscriber)
