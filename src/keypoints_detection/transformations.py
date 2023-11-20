@@ -9,6 +9,11 @@ from torchvision import transforms
 from PIL import Image
 import numpy as np
 
+try:
+    from .hourglass import hg
+except:
+    from hourglass import hg
+
 class CropAndPad:
 
     def __init__(self, out_size=(256,256)):

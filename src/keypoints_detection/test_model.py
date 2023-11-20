@@ -3,7 +3,7 @@ import sys
 from os.path import dirname
 sys.path.append(f'{dirname(__file__)}/..')
 
-from keypoint_model import keypoint_model
+from keypoint_model import KPModel
 import cv2, numpy as np
 
 
@@ -21,7 +21,7 @@ def test_model(image_path: str, data_imdir=False):
 
     image_names = list(data.keys())
 
-    kpModel = keypoint_model()
+    kpModel = KPModel()
     loss = []
     num_rejected = 0
     for i,iname in enumerate(image_names):
