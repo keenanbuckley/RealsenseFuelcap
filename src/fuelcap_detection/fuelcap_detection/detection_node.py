@@ -21,8 +21,11 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from rclpy.parameter import Parameter, ParameterMsg, ParameterType, ParameterValue
 
-import sys
 import os
+
+
+from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from std_msgs.msg import Header
 
 class DetectionNode(Node):
     def __init__(self, exposure: int = 7500, annotations=False):
@@ -61,6 +64,7 @@ class DetectionNode(Node):
         self.bboxModel = BBoxModel("models/bbox_net_trained.pth")
         self.kpModel = KPModel(path="models/keypoints_detection.pth")
         self.K = IntrinsicsMatrix()
+        self.pose_msg = PoseStamped()
     
     def color_listener_callback(self, img_msg: Image):
         self.color_img_msg = img_msg
@@ -92,8 +96,18 @@ class DetectionNode(Node):
             H = TransformationMatrix(R=rotation, t=translation)
             annotate_img(img, H, self.K)
             position, orientation = H.as_pos_and_quat()
+
+
+            self.pose_msg.pose.position = Point(*position)
+            self.pose_msg.pose.orientation = Quaternion(*orientation)
+            # TODO: set header for pose stamped
+            pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
+
         else:
             print("Could not calculate position")
+
+
+
 
 
     def publish_annotated_image(self, annotated_image):
