@@ -28,7 +28,7 @@ from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from std_msgs.msg import Header
 
 class DetectionNode(Node):
-    def __init__(self, exposure: int = 7500, annotations=False):
+    def __init__(self, exposure: int = 7500, enable_annotations=False):
         super().__init__('fuelcap_detection')
         self.bridge = CvBridge()
 
@@ -55,6 +55,10 @@ class DetectionNode(Node):
             '/camera/aligned_depth_to_color/image_raw',
             self.depth_listener_callback,
             10)
+        
+        # Create publisher for annotated images
+        if enable_annotations:
+            self.publisher_ = self.create_publisher(Image, 'annotated_image', 10)
         
         # For storing image messages while waiting for the other to arrive
         self.color_img_msg = None
