@@ -121,6 +121,77 @@ class keypoint_model:
             heatmap = heatmap + self.keypoints[i, :, :]
         return heatmap
     
+
+    def predict_position(self, K : IntrinsicsMatrix, depth : np.ndarray, kernel_size=12, img=None, keypoints=None):
+        if self.keypoints_2d is None and keypoints is None:
+            print("No keypoints available")
+        if self.keypoints_2d is None:
+            kps = keypoints
+
+        kpts = self.keypoints_2d
+        points = []
+        for i in range(10):
+            x,y = self.keypoints_2d[i, :2]
+            xi,yi = [round(i) for i in [x,y]]
+            depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
+            max_depth = np.max(depth_area)
+            ave_depth = np.mean(depth_area)
+
+            cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
+            
+            points.append(K.calc_position((x,y), max_depth))
+
+
+        points = np.array(points)
+        A = np.c_[points[:, :2], np.ones_like(points[:, 0])]
+        b = points[:, 2]
+        x, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
+        # print(x, residuals)
+        
+        z_axis = np.array([x[0], x[1], -1])
+        z_axis /= np.linalg.norm(-z_axis)
+
+        x_axis = points[2, :] - points[0, :] + points[3, :] - points[1,:]
+        x_axis = x_axis - np.dot(x_axis, z_axis) * z_axis
+        x_axis /= np.linalg.norm(x_axis)
+        
+        y_axis = np.cross(z_axis, x_axis)
+        y_axis /= np.linalg.norm(y_axis)
+
+        rotation = np.column_stack((x_axis, y_axis, z_axis))
+
+
+
+        mp1 = (kpts[0, :2] + kpts[1, :2]) // 2
+        mp2 = (kpts[4, :2] + kpts[8, :2]) // 2
+        mp3 = (kpts[5, :2] + kpts[7, :2]) // 2
+        mp4 = (kpts[6, :2] + kpts[9, :2]) // 2
+        
+        mps = np.array([mp1, mp2, mp3, mp4])
+        ctr_px = [round(i) for i in np.mean(mps, axis=0)]
+        area = depth[ctr_px[1]-kernel_size//2:ctr_px[1]+kernel_size//2, ctr_px[0]-kernel_size//2:ctr_px[0]+kernel_size//2]
+        try:
+            ctr_z = np.max(area)
+            ctr_pt = K.calc_position(ctr_px, ctr_z)
+            cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        except ValueError as e:
+            print(e)
+            
+            ctr_pt = None
+
+
+        return rotation, ctr_pt, img
+
+
+                        
+        
+        
+
+        
+
+
+
+
     def predict_keypoints(self, K : np.ndarray, keypoints3D, t=None, r=None):
         self.device = device
         K = torch.from_numpy(K.astype(np.double)).to(self.device)
@@ -141,10 +212,10 @@ class keypoint_model:
         keypoints2d = torch.from_numpy(np.c_[self.keypoints_2d[:, :2], np.ones((self.keypoints_2d.shape[0], 1))].T).to(self.device)
 
         norm_keypoints_2d = torch.matmul(K.inverse(), keypoints2d).t()
-        optimizer = torch.optim.Adam([r,t], lr=1e-4)
+        optimizer = torch.optim.Adam([r,t], lr=1e-2)
 
         converged = False
-        rel_tol = 1e-7
+        rel_tol = 1e-5
         loss_old = 1e10
         while not converged:
             optimizer.zero_grad()
@@ -164,141 +235,280 @@ class keypoint_model:
         R = rodrigues(r)
         return R.detach(), t.detach()
 
-def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.json"):
-    import json, random
+
+
+
+
+
+
+
+def test_model(model: keypoint_model):
+    import json, random, time
     import pandas as pd
 
-    # with open(path, 'r') as f:
-    #     data = dict(json.load(f))
-    
-    # test_image = random.choice(list(data.keys()))
 
-    img_dir = "./data/GroundTruth"
-    test_image = '1700088095696.png'#random.choice(os.listdir(img_dir))
+    # img_dir = "./data/GroundTruth"
+    # test_image = '1700088095696.png'#random.choice(os.listdir(img_dir))
+
+    img_dir = "./data/RealWorldBboxData"
+    
+    test_image = random.choice(os.listdir(f"{img_dir}/color"))
     print(test_image)
     # img_data = data[test_image]
 
-    df = pd.read_csv("data/GroundTruth/fuelcap_data.csv")
-    row = df.loc[df['image_name'] == test_image[:-4]].iloc[0]
-    x = row["dX"] + 0.4
-    y = row["dY"] + 0.5
-    z = row["dZ"] - (25 / 25.4)
-    angle_mount = row["angle_mount"]
-    angle_cap = row["angle_cap"]
-    print(angle_mount)
 
-    H_ground_truth = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
-    print(H_ground_truth.as_pos_and_quat())
-    
     img = read_image(f'{img_dir}/color/{test_image}')
+    depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
+    K = IntrinsicsMatrix()
 
+    t0 = time.time()
     bboxModel = BBoxModel("models/bbox_net_trained.pth")
     bbox, score = bboxModel.find_bbox(img)
     bbox = bbox.numpy()
-    bbox_center = (int((bbox[2] + bbox[0])/2), int((bbox[3] + bbox[1])/2))
-    depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
-    bbox_center_z = depth_img[bbox_center[1], bbox_center[0]]
 
-    # bbox = img_data["bbox"]
+
     img = cv2.imread(f'{img_dir}/color/{test_image}')
+    kpts = model.predict(img, bbox)
+    rotation, translation, img = model.predict_position(K, depth_img, 12, img)
+    if translation is not None:
+
+        H = TransformationMatrix(R = rotation, t=translation)
+        annotate_img(img, H, K)
+    else:
+        print("Could not detect center point")
+    print("Elepsed time", time.time()-t0)
+
     
-    original = img.copy()
-    print(original.shape)
-
-    t0 = time.time()
-    predicted_keypoints = model.predict(img, bbox)
-    print(f"Elapsed time: {time.time() - t0:.3f}, {test_image}")
-    heatmap = model.merge_heatmaps()
-    # K = np.array([
-    #     [635.722,   0.,   630.956],
-    #     [  0.,    635.722, 364.251],
-    #     [  0.,      0.,      1.   ]
-    # ])
-    K = IntrinsicsMatrix()
-    S = np.load('kpt.npy')
-    S[:, 2] = 0
-
-    H_ground_truth.set_translation(K.calc_position(bbox_center, bbox_center_z))
-    t_start, r_start = H_ground_truth.as_pos_and_quat()
-    r_start = Rotation.from_quat(r_start).as_rotvec()
-    #t_start = K.calc_position(bbox_center, bbox_center_z)
-    t_start = torch.from_numpy(t_start.astype(np.float32))
-    r_start = torch.from_numpy(r_start.astype(np.float32))
-    pose = model.predict_keypoints(K.matrix, S, t=t_start, r=r_start)
-    #print(pose)
-    rotation = pose[0].numpy()
-    translation = pose[1].numpy()
-    #rotation = np.array([0,np.deg2rad(180),0], dtype=np.float32)
-    #translation = K.calc_position(bbox_center, bbox_center_z)
-    #translation = H_ground_truth.as_pos_and_quat()[0]
-    print(translation)
-    print(K.calc_pixels(translation))
-    #rotation, _ = cv2.Rodrigues(rotation)
-    print(rotation)
-    H = TransformationMatrix(R = rotation, t = translation)
-    annotate_img(original, H, K)
-
-    #keypoints = img_data["keypoints"]
-
-    predicted = original.copy()
-
-    # Draw circles and add numbers
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1
-    font_thickness = 2
-    #S *= -1
-
-    for i in range(10):
-        num = str(i+1)
-        text_size, _ = cv2.getTextSize(num, font, font_scale, font_thickness)
-
-        kp = S[i]
-        #R = Rotation.from_euler('z', 180, degrees=True).as_matrix()
-        #kp = TransformationMatrix(R, (0,0,0)).transform_point(kp)
-        kp = K.calc_pixels(H.transform_point(kp))
-
-        #kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
-        #cv2.circle(original, kp, 5, 0x0000FF, -1)
-        
-        # text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
-        # text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
-        cv2.circle(predicted, (int(predicted_keypoints[i, 0]), int(predicted_keypoints[i, 1])), 5, 0x00FF00, -1)
-        cv2.rectangle(predicted, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), 0x00FFFF, 3)
-        cv2.circle(predicted, (int(kp[0]), int(kp[1])), 5, (0, 255, 0), -1)
-        # cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
-        # cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
-
-    # 89mm
+    # for i in range(10):
+    #     kp = [round(i) for i in kpts[i, :2]]
+    #     cv2.circle(img, kp, 5, 0x0000FF, -1)
 
 
-    # dist_between(predicted_keypoints, keypoints)
-    heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))
-    heatmap = (255 * heatmap).astype(np.uint8)
-    h, w = heatmap.shape
-    heatmap = cv2.resize(heatmap, (4*w, 4*h))
-
-    cv2.imshow("Original Keypoints", original)
-    cv2.imshow("Predicted Keypoints", predicted)
-    cv2.imshow("Keypoints heatmaps", heatmap)
-    # cv2.imshow("Blurred image", blurr)
+    cv2.imshow("Image", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-def dist_between(predicted_keypoints, keypoints):
-    print(f"Labeled Kaypoings:")
-    for i in range(10):
-        print(keypoints[2*i], keypoints[2*i+1])
-    keypoints = np.array(predicted_keypoints).reshape(-1,2)
-    for i in range(10):
-        print(keypoints[i,:])
-    print(f"predicted keypoints:")
-    for i in range(10):
-        print(predicted_keypoints[i, :2])
+
+    # df = pd.read_csv("data/GroundTruth/fuelcap_data.csv")
+    # row = df.loc[df['image_name'] == test_image[:-4]].iloc[0]
+    # x = row["dX"] + 0.4
+    # y = row["dY"] + 0.5
+    # z = row["dZ"] - (25 / 25.4)
+    # angle_mount = row["angle_mount"]
+    # angle_cap = row["angle_cap"]
+
+    # H_ground_truth = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
+    # print(H_ground_truth.as_pos_and_quat())
+    
+    # bbox_center = (int((bbox[2] + bbox[0])/2), int((bbox[3] + bbox[1])/2))
+    # bbox_center_z = depth_img[bbox_center[1], bbox_center[0]]
+
+    # original = img.copy()
+
+    # heatmap = model.merge_heatmaps()
+
+    # # S = np.load('kpt.npy')
+    # # S[:, 2] = 0
+
+    # kp1 = predicted_keypoints[0, :2]
+    # kp2 = predicted_keypoints[1, :2]
+    # mid = (kp1 + kp2) / 2
+    # print(mid)
+    # midz = depth_img[int(mid[1]), int(mid[0])]
+
+
+    # # annotate_img(original, H, K)
+
+    # #keypoints = img_data["keypoints"]
+
+    # predicted = original.copy()
+
+    # # Draw circles and add numbers
+    # font = cv2.FONT_HERSHEY_SIMPLEX
+    # font_scale = 1
+    # font_thickness = 2
+    # S *= -1
+
+    # for i in range(10):
+    #     num = str(i+1)
+    #     text_size, _ = cv2.getTextSize(num, font, font_scale, font_thickness)
+
+    #     kp = S[i]
+    #     #R = Rotation.from_euler('z', 180, degrees=True).as_matrix()
+    #     #kp = TransformationMatrix(R, (0,0,0)).transform_point(kp)
+    #     kp = K.calc_pixels(H.transform_point(kp))
+
+    #     #kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
+    #     #cv2.circle(original, kp, 5, 0x0000FF, -1)
+        
+    #     # text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
+    #     # text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
+    #     cv2.circle(predicted, (int(predicted_keypoints[i, 0]), int(predicted_keypoints[i, 1])), 5, 0x00FF00, -1)
+    #     cv2.rectangle(predicted, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), 0x00FFFF, 3)
+    #     cv2.circle(predicted, (int(kp[0]), int(kp[1])), 5, (0, 255, 0), -1)
+    #     cv2.circle(predicted, bbox_center, 3, (255,255,255), -1)
+    #     # cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+    #     # cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+
+
+    # cv2.imshow("Original Keypoints", original)
+    # cv2.imshow("Predicted Keypoints", predicted)
+    # cv2.imshow("Keypoints heatmaps", heatmap)
+    # # cv2.imshow("Blurred image", blurr)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+
+
+
+
+
+
+# def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.json"):
+#     import json, random
+#     import pandas as pd
+
+#     # with open(path, 'r') as f:
+#     #     data = dict(json.load(f))
+    
+#     # test_image = random.choice(list(data.keys()))
+
+#     img_dir = "./data/GroundTruth"
+#     # test_image = '1700088095696.png'#random.choice(os.listdir(img_dir))
+#     test_image = random.choice(os.listdir(f"{img_dir}/color"))
+#     print(test_image)
+#     # img_data = data[test_image]
+
+#     df = pd.read_csv("data/GroundTruth/fuelcap_data.csv")
+#     row = df.loc[df['image_name'] == test_image[:-4]].iloc[0]
+#     x = row["dX"] + 0.4
+#     y = row["dY"] + 0.5
+#     z = row["dZ"] - (25 / 25.4)
+#     angle_mount = row["angle_mount"]
+#     angle_cap = row["angle_cap"]
+#     print(angle_mount)
+
+#     H_ground_truth = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
+#     print(H_ground_truth.as_pos_and_quat())
+    
+#     img = read_image(f'{img_dir}/color/{test_image}')
+
+#     bboxModel = BBoxModel("models/bbox_net_trained.pth")
+#     bbox, score = bboxModel.find_bbox(img)
+#     bbox = bbox.numpy()
+#     bbox_center = (int((bbox[2] + bbox[0])/2), int((bbox[3] + bbox[1])/2))
+#     depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
+#     bbox_center_z = depth_img[bbox_center[1], bbox_center[0]]
+
+
+
+#     # bbox = img_data["bbox"]
+#     img = cv2.imread(f'{img_dir}/color/{test_image}')
+    
+#     original = img.copy()
+#     print(original.shape)
+
+#     t0 = time.time()
+#     predicted_keypoints = model.predict(img, bbox)
+#     print(f"Elapsed time: {time.time() - t0:.3f}, {test_image}")
+#     heatmap = model.merge_heatmaps()
+#     # K = np.array([
+#     #     [635.722,   0.,   630.956],
+#     #     [  0.,    635.722, 364.251],
+#     #     [  0.,      0.,      1.   ]
+#     # ])
+#     K = IntrinsicsMatrix()
+#     S = np.load('kpt.npy')
+#     S[:, 2] = 0
+
+#     kp1 = predicted_keypoints[0, :2]
+#     kp2 = predicted_keypoints[1, :2]
+#     mid = (kp1 + kp2) / 2
+#     print(mid)
+#     midz = depth_img[int(mid[1]), int(mid[0])]
+
+#     H_ground_truth.set_translation(K.calc_position(mid, midz))
+#     t_start, r_start = H_ground_truth.as_pos_and_quat()
+#     r_start = Rotation.from_quat(r_start).as_rotvec()
+#     #t_start = K.calc_position(bbox_center, bbox_center_z)
+#     t_start = torch.from_numpy(t_start.astype(np.float32))
+#     r_start = torch.from_numpy(r_start.astype(np.float32))
+#     pose = model.predict_keypoints(K.matrix, S, t=t_start, r=r_start)
+#     #print(pose)
+#     rotation = pose[0].numpy()
+#     translation = pose[1].numpy()
+#     #rotation = np.array([0,np.deg2rad(180),0], dtype=np.float32)
+#     #translation = K.calc_position(bbox_center, bbox_center_z)
+#     #translation = H_ground_truth.as_pos_and_quat()[0]
+#     print(translation)
+#     print(K.calc_pixels(translation))
+#     #rotation, _ = cv2.Rodrigues(rotation)
+#     print(rotation)
+#     H = TransformationMatrix(R = rotation, t = translation)
+#     annotate_img(original, H, K)
+
+#     #keypoints = img_data["keypoints"]
+
+#     predicted = original.copy()
+
+#     # Draw circles and add numbers
+#     font = cv2.FONT_HERSHEY_SIMPLEX
+#     font_scale = 1
+#     font_thickness = 2
+#     S *= -1
+
+#     for i in range(10):
+#         num = str(i+1)
+#         text_size, _ = cv2.getTextSize(num, font, font_scale, font_thickness)
+
+#         kp = S[i]
+#         #R = Rotation.from_euler('z', 180, degrees=True).as_matrix()
+#         #kp = TransformationMatrix(R, (0,0,0)).transform_point(kp)
+#         kp = K.calc_pixels(H.transform_point(kp))
+
+#         #kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
+#         #cv2.circle(original, kp, 5, 0x0000FF, -1)
+        
+#         # text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
+#         # text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
+#         cv2.circle(predicted, (int(predicted_keypoints[i, 0]), int(predicted_keypoints[i, 1])), 5, 0x00FF00, -1)
+#         cv2.rectangle(predicted, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), 0x00FFFF, 3)
+#         cv2.circle(predicted, (int(kp[0]), int(kp[1])), 5, (0, 255, 0), -1)
+#         cv2.circle(predicted, bbox_center, 3, (255,255,255), -1)
+#         # cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+#         # cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
+
+#     # 89mm
+
+
+#     # dist_between(predicted_keypoints, keypoints)
+#     heatmap = (heatmap - np.min(heatmap)) / (np.max(heatmap) - np.min(heatmap))
+#     heatmap = (255 * heatmap).astype(np.uint8)
+#     h, w = heatmap.shape
+#     heatmap = cv2.resize(heatmap, (4*w, 4*h))
+
+#     cv2.imshow("Original Keypoints", original)
+#     cv2.imshow("Predicted Keypoints", predicted)
+#     cv2.imshow("Keypoints heatmaps", heatmap)
+#     # cv2.imshow("Blurred image", blurr)
+#     cv2.waitKey(0)
+#     cv2.destroyAllWindows()
+
+# def dist_between(predicted_keypoints, keypoints):
+#     print(f"Labeled Kaypoings:")
+#     for i in range(10):
+#         print(keypoints[2*i], keypoints[2*i+1])
+#     keypoints = np.array(predicted_keypoints).reshape(-1,2)
+#     for i in range(10):
+#         print(keypoints[i,:])
+#     print(f"predicted keypoints:")
+#     for i in range(10):
+#         print(predicted_keypoints[i, :2])
 
 if __name__ == "__main__":
     import time
     model = keypoint_model()
-    for i in range(1):
+    for i in range(5):
         test_model(model)
         
         # break
