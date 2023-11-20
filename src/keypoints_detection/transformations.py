@@ -12,7 +12,7 @@ import numpy as np
 try:
     from .hourglass import hg
 except:
-    from hourglass import hg
+    from keypoints_detection.hourglass import hg
 
 class CropAndPad:
 
