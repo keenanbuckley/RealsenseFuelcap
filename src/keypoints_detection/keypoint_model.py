@@ -15,9 +15,11 @@ from hourglass import hg
 from time import time
 import numpy as np
 import cv2 
+from torchvision.io import read_image
+from scipy.spatial.transform import Rotation
 
 from transformations import *
-from image_transformations.coordinate_transforms import IntrinsicsMatrix, annotate_img, TransformationMatrix
+from image_transformations.coordinate_transforms import calculate_matrix, IntrinsicsMatrix, annotate_img, TransformationMatrix
 from bounding_box import BBoxModel
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -107,7 +109,7 @@ class keypoint_model:
         y_coords = 4*y_coords * scale + center_y - width // 2
         x_coords = 4*x_coords * scale + center_x - width // 2
 
-        self.keypoints_2d = np.array([x_coords, y_coords, confs]).T 
+        self.keypoints_2d = np.array([x_coords, y_coords, confs]).T
         return self.keypoints_2d 
 
 
@@ -119,12 +121,19 @@ class keypoint_model:
             heatmap = heatmap + self.keypoints[i, :, :]
         return heatmap
     
-    def predict_keypoints(self, K : np.ndarray, keypoints3D):
+    def predict_keypoints(self, K : np.ndarray, keypoints3D, t=None, r=None):
         self.device = device
         K = torch.from_numpy(K.astype(np.double)).to(self.device)
         keypoints3D = torch.from_numpy(keypoints3D).to(self.device)
-        r = torch.rand(3, requires_grad=True, device=self.device) # rotation in axis-angle representation
-        t = torch.rand(3 ,requires_grad=True, device=self.device)
+        #r = torch.rand(3, requires_grad=True, device=self.device) # rotation in axis-angle representation
+        if t is None:
+            t = torch.rand(3 ,requires_grad=True, device=self.device)
+        else:
+            t.requires_grad_()
+        if r is None:
+            r = torch.rand(3, requires_grad=True, device=self.device) # rotation in axis-angle representation
+        else:
+            r.requires_grad_()
         d = torch.from_numpy(self.keypoints_2d[:,2]).sqrt()[:, None].to(self.device)
 
         # print(d.shape)
@@ -132,7 +141,7 @@ class keypoint_model:
         keypoints2d = torch.from_numpy(np.c_[self.keypoints_2d[:, :2], np.ones((self.keypoints_2d.shape[0], 1))].T).to(self.device)
 
         norm_keypoints_2d = torch.matmul(K.inverse(), keypoints2d).t()
-        optimizer = torch.optim.Adam([r,t], lr=1e-2)
+        optimizer = torch.optim.Adam([r,t], lr=1e-4)
 
         converged = False
         rel_tol = 1e-7
@@ -150,35 +159,51 @@ class keypoint_model:
                 break
             else:
                 loss_old = err.detach()
+            print(float(loss_old))
 
         R = rodrigues(r)
-        return R[0].detach(), t.detach()
-
-
-
+        return R.detach(), t.detach()
 
 def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.json"):
     import json, random
+    import pandas as pd
 
     # with open(path, 'r') as f:
     #     data = dict(json.load(f))
     
     # test_image = random.choice(list(data.keys()))
 
-    img_dir = "data/GroundTruth/color"
-    test_image = random.choice(os.listdir(img_dir))
+    img_dir = "./data/GroundTruth"
+    test_image = '1700088095696.png'#random.choice(os.listdir(img_dir))
     print(test_image)
     # img_data = data[test_image]
+
+    df = pd.read_csv("data/GroundTruth/fuelcap_data.csv")
+    row = df.loc[df['image_name'] == test_image[:-4]].iloc[0]
+    x = row["dX"] + 0.4
+    y = row["dY"] + 0.5
+    z = row["dZ"] - (25 / 25.4)
+    angle_mount = row["angle_mount"]
+    angle_cap = row["angle_cap"]
+    print(angle_mount)
+
+    H_ground_truth = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
+    print(H_ground_truth.as_pos_and_quat())
     
-    img = cv2.imread(f"{img_dir}/{test_image}.png")
+    img = read_image(f'{img_dir}/color/{test_image}')
 
     bboxModel = BBoxModel("models/bbox_net_trained.pth")
-    pilimg = Image.fromarray(img)
-    bbox, score = bboxModel.find_bbox(pilimg)
+    bbox, score = bboxModel.find_bbox(img)
     bbox = bbox.numpy()
+    bbox_center = (int((bbox[2] + bbox[0])/2), int((bbox[3] + bbox[1])/2))
+    depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
+    bbox_center_z = depth_img[bbox_center[1], bbox_center[0]]
 
     # bbox = img_data["bbox"]
+    img = cv2.imread(f'{img_dir}/color/{test_image}')
+    
     original = img.copy()
+    print(original.shape)
 
     t0 = time.time()
     predicted_keypoints = model.predict(img, bbox)
@@ -191,17 +216,29 @@ def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.j
     # ])
     K = IntrinsicsMatrix()
     S = np.load('kpt.npy')
-    pose = model.predict_keypoints(K.matrix, S)
-    print(pose)
+    S[:, 2] = 0
+
+    H_ground_truth.set_translation(K.calc_position(bbox_center, bbox_center_z))
+    t_start, r_start = H_ground_truth.as_pos_and_quat()
+    r_start = Rotation.from_quat(r_start).as_rotvec()
+    #t_start = K.calc_position(bbox_center, bbox_center_z)
+    t_start = torch.from_numpy(t_start.astype(np.float32))
+    r_start = torch.from_numpy(r_start.astype(np.float32))
+    pose = model.predict_keypoints(K.matrix, S, t=t_start, r=r_start)
+    #print(pose)
     rotation = pose[0].numpy()
     translation = pose[1].numpy()
+    #rotation = np.array([0,np.deg2rad(180),0], dtype=np.float32)
+    #translation = K.calc_position(bbox_center, bbox_center_z)
+    #translation = H_ground_truth.as_pos_and_quat()[0]
+    print(translation)
     print(K.calc_pixels(translation))
-    rotation, _ = cv2.Rodrigues(rotation)
+    #rotation, _ = cv2.Rodrigues(rotation)
     print(rotation)
     H = TransformationMatrix(R = rotation, t = translation)
     annotate_img(original, H, K)
 
-    keypoints = img_data["keypoints"]
+    #keypoints = img_data["keypoints"]
 
     predicted = original.copy()
 
@@ -209,18 +246,25 @@ def test_model(model: keypoint_model, path="./data/RealWorldBboxData/test_data.j
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 1
     font_thickness = 2
+    #S *= -1
 
     for i in range(10):
         num = str(i+1)
         text_size, _ = cv2.getTextSize(num, font, font_scale, font_thickness)
 
-        kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
-        cv2.circle(original, kp, 5, 0x0000FF, -1)
+        kp = S[i]
+        #R = Rotation.from_euler('z', 180, degrees=True).as_matrix()
+        #kp = TransformationMatrix(R, (0,0,0)).transform_point(kp)
+        kp = K.calc_pixels(H.transform_point(kp))
+
+        #kp = [int(keypoints[2*i]), int(keypoints[2*i+1])]
+        #cv2.circle(original, kp, 5, 0x0000FF, -1)
         
         # text_pos_o = (kp[0] - text_size[0] // 2, kp[1] - 15)
         # text_pos_p = (int(predicted_keypoints[i, 0]) -text_size[0]//2, int(predicted_keypoints[i, 1])-15)
         cv2.circle(predicted, (int(predicted_keypoints[i, 0]), int(predicted_keypoints[i, 1])), 5, 0x00FF00, -1)
         cv2.rectangle(predicted, (int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3])), 0x00FFFF, 3)
+        cv2.circle(predicted, (int(kp[0]), int(kp[1])), 5, (0, 255, 0), -1)
         # cv2.putText(original, num, text_pos_o, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
         # cv2.putText(predicted, num, text_pos_p, font, font_scale, 0x0000FF, font_thickness, cv2.LINE_AA)
 

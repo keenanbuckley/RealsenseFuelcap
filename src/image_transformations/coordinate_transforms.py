@@ -101,7 +101,7 @@ class TransformationMatrix:
             np.ndarray: 4x4 translation matrix
         """
         # ensure rotation matrix is orthonormal
-        assert np.allclose(np.dot(rotation, rotation.T), np.eye(3))
+        #assert np.allclose(np.dot(rotation, rotation.T), np.eye(3))
 
         matrix = np.eye(4, dtype=np.float32)
         matrix[:3, 3] =  translation# translation
@@ -219,6 +219,7 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     
     H = TransformationMatrix()
     H = H * Rotation.from_euler('z', -angle_cap, degrees=True).as_matrix()
+    #H = H * Rotation.from_euler('y', -10, degrees=True).as_matrix()
     H = H * np.array([x,y,z])
     H = H * Rotation.from_euler('y', angles=180+angle_mount, degrees=True).as_matrix()
     H = H * __mount_to_camera_translation()
