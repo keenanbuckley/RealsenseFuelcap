@@ -114,7 +114,7 @@ class KPModel:
             kps = keypoints
 
         kpts = self.keypoints_2d
-        points = []
+        points3D = []
         for i in range(10):
             x,y = self.keypoints_2d[i, :2]
             xi,yi = [round(i) for i in [x,y]]
@@ -124,19 +124,19 @@ class KPModel:
 
             cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
             
-            points.append(K.calc_position((x,y), max_depth))
+            points3D.append(K.calc_position((x,y), max_depth))
 
 
-        points = np.array(points)
-        A = np.c_[points[:, :2], np.ones_like(points[:, 0])]
-        b = points[:, 2]
+        points3D = np.array(points3D)
+        A = np.c_[points3D[:, :2], np.ones_like(points3D[:, 0])]
+        b = points3D[:, 2]
         x, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
         # print(x, residuals)
         
         z_axis = np.array([x[0], x[1], -1])
         z_axis /= np.linalg.norm(-z_axis)
 
-        x_axis = points[2, :] - points[0, :] + points[3, :] - points[1,:]
+        x_axis = points3D[2, :] - points3D[0, :] + points3D[3, :] - points3D[1,:]
         x_axis = x_axis - np.dot(x_axis, z_axis) * z_axis
         x_axis /= np.linalg.norm(x_axis)
         
@@ -145,24 +145,33 @@ class KPModel:
 
         rotation = np.column_stack((x_axis, y_axis, z_axis))
 
+        center_pts = [
+            (points3D[0, :] + points3D[1, :]) / 2,
+            (points3D[4, :] + points3D[8, :]) / 2,
+            (points3D[5, :] + points3D[7, :]) / 2,
+            (points3D[6, :] + points3D[9, :]) / 2
 
+        ]
+        ctr_pt = np.mean(center_pts, axis=0)
+        ctr_px = K.calc_pixels(ctr_pt)
+        cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        
+        # mp1 = (kpts[0, :2] + kpts[1, :2]) // 2
+        # mp2 = (kpts[4, :2] + kpts[8, :2]) // 2
+        # mp3 = (kpts[5, :2] + kpts[7, :2]) // 2
+        # mp4 = (kpts[6, :2] + kpts[9, :2]) // 2
 
-        mp1 = (kpts[0, :2] + kpts[1, :2]) // 2
-        mp2 = (kpts[4, :2] + kpts[8, :2]) // 2
-        mp3 = (kpts[5, :2] + kpts[7, :2]) // 2
-        mp4 = (kpts[6, :2] + kpts[9, :2]) // 2
-
-        mps = np.array([mp1, mp2, mp3, mp4])
-        ctr_px = [round(i) for i in np.mean(mps, axis=0)]
-        area = depth[ctr_px[1]-kernel_size//2:ctr_px[1]+kernel_size//2, ctr_px[0]-kernel_size//2:ctr_px[0]+kernel_size//2]
-        try:
-            ctr_z = np.max(area)
-            ctr_pt = K.calc_position(ctr_px, ctr_z)
-            cv2.circle(img, ctr_px, 5, (255,255,255), -1)
-        except ValueError as e:
-            print(e)
+        # mps = np.array([mp1, mp2, mp3, mp4])
+        # ctr_px = [round(i) for i in np.mean(mps, axis=0)]
+        # area = depth[ctr_px[1]-kernel_size//2:ctr_px[1]+kernel_size//2, ctr_px[0]-kernel_size//2:ctr_px[0]+kernel_size//2]
+        # try:
+        #     ctr_z = np.max(area)
+        #     ctr_pt = K.calc_position(ctr_px, ctr_z)
+        #     cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        # except ValueError as e:
+        #     print(e)
             
-            ctr_pt = None
+        #     ctr_pt = None
 
 
         return rotation, ctr_pt, img
