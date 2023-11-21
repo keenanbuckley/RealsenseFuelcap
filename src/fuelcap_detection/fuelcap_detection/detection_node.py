@@ -92,23 +92,21 @@ class DetectionNode(Node):
         bbox, score = self.bboxModel.find_bbox(pilimage)
         if not bbox is None:
             kpts = self.kpModel.predict(image_color, bbox)
-            rotation, translation, img = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
+            rotation, translation, image_color = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
             if not translation is None:
                 H = TransformationMatrix(R=rotation, t=translation)
-                annotate_img(img, H, self.K)
+                annotate_img(image_color, H, self.K)
                 position, orientation = H.as_pos_and_quat()
                 #self.pose_msg.pose.position = Point(*position)
                 #self.pose_msg.pose.orientation = Quaternion(*orientation)
                 # TODO: set header for pose stamped
                 #self.pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
             else:
-                pass
-                #print("Could not calculate position")
+                self.get_logger().error(f"Could not calculate position")
         else:
-            pass
-            #print("No bbox detected")
+            self.get_logger().error(f"No BBox detected")
         if self.enable_annotations:
-            self.publish_annotated_image(img)
+            self.publish_annotated_image(image_color)
 
     def publish_annotated_image(self, annotated_image):
         msg = self.bridge.cv2_to_imgmsg(np.array(annotated_image), "bgr8")

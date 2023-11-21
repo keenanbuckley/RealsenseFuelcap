@@ -83,7 +83,7 @@ class KPModel:
 
         scale = self.item['scale'][0]
         if not type(width) is np.float32:
-            print(type(width))
+            #print(type(width))
             width = width.numpy()
         # image shrunk by factor of 4, reduced by scale, and moved to bounding box. Must undo
         y_coords = 4*y_coords * scale + center_y - width // 2
@@ -177,12 +177,12 @@ def test_model(model: KPModel):
     import pandas as pd
 
 
-    # img_dir = "./data/GroundTruth"
-    # test_image = '1700088095696.png'#random.choice(os.listdir(img_dir))
+    img_dir = "./data/GroundTruth"
+    test_image = '1700082959447.png'#random.choice(os.listdir(img_dir))
 
-    img_dir = "./data/RealWorldBboxData"
+    #img_dir = "./data/RealWorldBboxData"
     
-    test_image = random.choice(os.listdir(f"{img_dir}/color"))
+    #test_image = random.choice(os.listdir(f"{img_dir}/color"))
     print(test_image)
     # img_data = data[test_image]
 
@@ -204,7 +204,8 @@ def test_model(model: KPModel):
         annotate_img(img, H, K)
     else:
         print("Could not detect center point")
-    print("Elepsed time", time.time()-t0)
+    print("Elapsed time", time.time()-t0)
+    print(rotation, translation)
 
     cv2.imshow("Image", img)
     cv2.waitKey(0)
@@ -214,8 +215,8 @@ def test_model(model: KPModel):
 if __name__ == "__main__":
     import time
     model = KPModel()
-    for i in range(5):
-        test_model(model)
+    #for i in range(5):
+    test_model(model)
         
         # break
     
