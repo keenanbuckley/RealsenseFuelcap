@@ -34,6 +34,7 @@ if __name__ == "__main__":
         #img = annotate_img(img, H_v_max, K, axis_len=5)
         img = annotate_img(img, H, K, axis_len=30)
         print(f"Displaying {name}: ({x}, {y}, {z}), mount={angle_mount}, cap={angle_cap}")
+        print(H.as_pos_and_quat()[0])
         cv2.imshow("Annotated Image", img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
