@@ -1,22 +1,14 @@
 from __future__ import division
 from __future__ import print_function
 
-import sys
-from os.path import dirname
-sys.path.append(f'{dirname(__file__)}/..')
-
 import torch
 from torchvision import transforms
 # from hourglass import hg
 from PIL import Image
 import os
 #from os import join
-try:
-    from .hourglass import hg
-    from .transformations import *
-except:
-    from hourglass import hg
-    from transformations import *
+from keypoints_detection.hourglass import hg
+from keypoints_detection.transformations import *
 
 from time import time
 import numpy as np
@@ -39,7 +31,10 @@ class KPModel:
 
         self.transform = transforms.Compose(transform_list)
 
-        self.model = torch.load(path)
+        #self.model = torch.load(path)
+        self.model = hg(num_stacks=1, num_blocks=1, num_classes=10).to(self.device)
+        checkpoint = torch.load('./models/model_checkpoint.pt')
+        self.model.load_state_dict(checkpoint['model'])
 
         self.keypoints_2d = None
         self.keypoints = None

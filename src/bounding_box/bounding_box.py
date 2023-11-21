@@ -14,8 +14,12 @@ class BBoxModel():
         self.model.eval()
     
     def return_prediction(self, prediction):
-        bbox = prediction['boxes'][0].cpu()
-        score = prediction['scores'][0].cpu()
+        if len(prediction['boxes'] > 0):
+            bbox = prediction['boxes'][0].cpu()
+            score = prediction['scores'][0].cpu()
+        else:
+            bbox = None
+            score = 0
         return bbox, score
 
     def find_bbox(self, image):

@@ -2,16 +2,13 @@ import cv2
 import numpy as np
 import rclpy
 import time
-
 import sys
-from os.path import dirname
-sys.path.append(f'{dirname(__file__)}/..')
+
 from keypoints_detection.keypoint_model import KPModel
 from bounding_box.bounding_box import BBoxModel
 from image_transformations.coordinate_transforms import *
 
-
-from PIL import Image
+import PIL
 
 from rclpy.node import Node
 from rcl_interfaces.srv import SetParameters
@@ -21,9 +18,6 @@ from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from rclpy.parameter import Parameter, ParameterMsg, ParameterType, ParameterValue
 
-import os
-
-
 from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from std_msgs.msg import Header
 
@@ -31,6 +25,7 @@ class DetectionNode(Node):
     def __init__(self, exposure: int = 7500, enable_annotations=False):
         super().__init__('fuelcap_detection')
         self.bridge = CvBridge()
+        self.enable_annotations = enable_annotations
 
         # Parameters to automatically change for the realsense node
         camera_parameters = list()
@@ -57,8 +52,8 @@ class DetectionNode(Node):
             10)
         
         # Create publisher for annotated images
-        if enable_annotations:
-            self.publisher_ = self.create_publisher(Image, 'annotated_image', 10)
+        if self.enable_annotations:
+            self.annotated_image_publisher = self.create_publisher(Image, 'annotated_image', 10)
         
         # For storing image messages while waiting for the other to arrive
         self.color_img_msg = None
@@ -93,26 +88,55 @@ class DetectionNode(Node):
             return
         
         image_depth = np.array(image_depth, dtype=np.uint16)
-        bbox, score = self.bboxModel.find_bbox(Image.fromarray(image_color))
-        kpts = self.kpModel(image_color, bbox)
-        rotation, translation, img = self.kpModel(self.K, image_depth, 12, image_color)
-        if translation is not None:
-            H = TransformationMatrix(R=rotation, t=translation)
-            annotate_img(img, H, self.K)
-            position, orientation = H.as_pos_and_quat()
-
-
-            self.pose_msg.pose.position = Point(*position)
-            self.pose_msg.pose.orientation = Quaternion(*orientation)
-            # TODO: set header for pose stamped
-            pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
-
+        pilimage = PIL.Image.fromarray(image_color)
+        bbox, score = self.bboxModel.find_bbox(pilimage)
+        if not bbox is None:
+            kpts = self.kpModel.predict(image_color, bbox)
+            rotation, translation, img = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
+            if not translation is None:
+                H = TransformationMatrix(R=rotation, t=translation)
+                annotate_img(img, H, self.K)
+                position, orientation = H.as_pos_and_quat()
+                #self.pose_msg.pose.position = Point(*position)
+                #self.pose_msg.pose.orientation = Quaternion(*orientation)
+                # TODO: set header for pose stamped
+                #self.pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
+            else:
+                pass
+                #print("Could not calculate position")
         else:
-            print("Could not calculate position")
-
-
-
-
+            pass
+            #print("No bbox detected")
+        if self.enable_annotations:
+            self.publish_annotated_image(img)
 
     def publish_annotated_image(self, annotated_image):
+        msg = self.bridge.cv2_to_imgmsg(np.array(annotated_image), "bgr8")
+        self.annotated_image_publisher.publish(msg)
+        self.get_logger().info(f'publishing annotated image')
+    
+def main(args=None):
+    py_args = sys.argv[1:]
+
+    try: 
+        exposure = int(py_args[0])
+        print(f'Exposure set to {exposure}')
+    except:
+        print("No exposure detected, setting to 7500")
+        exposure = 7500
+
+    rclpy.init(args=args)
+    detection_node = DetectionNode(exposure=exposure, enable_annotations=True)
+
+    try:
+        rclpy.spin(detection_node)
+    except EOFError:
         pass
+
+    detection_node.destroy_node()
+    if rclpy.ok():
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
