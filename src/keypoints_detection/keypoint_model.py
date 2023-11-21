@@ -47,7 +47,14 @@ class KPModel:
         self.model.eval()
 
     def predict(self, image, bbox):
-        
+        '''
+        Finds keypoints in image
+        Args: 
+            image: color image
+            bbox: bounding box of fuel cap [xmin, ymin, xmax, ymax]
+        Returns:
+            2d array containing keypoints, with conficences for each point
+        '''
         # convert to PIL image
         image = Image.fromarray(image)
 
@@ -99,6 +106,9 @@ class KPModel:
 
 
     def merge_heatmaps(self):
+        """
+        Creates heatmap, used for visualizations
+        """
         if self.keypoints is None or self.item is None:
             print("No heatmap available") 
         heatmap = np.zeros_like(self.keypoints[0,:,:])
@@ -107,12 +117,28 @@ class KPModel:
         return heatmap
     
 
-    def predict_position(self, K : IntrinsicsMatrix, depth : np.ndarray, kernel_size=12, img=None, keypoints=None):
+    def predict_position(self, K : IntrinsicsMatrix, depth : np.ndarray, kernel_size:int=12, img=None, keypoints=None):
+        """
+        Calculates position and rotaiton of the fuel cap
+        Args:
+            K (IntrinsicsMatrix): Camera Intrinsics, used for pixel-point and point-pixel projections
+            depth (np.ndarray): Depth image 
+            kernel_size (int): size of the square used to get depth at each point
+            img (optional): color image, will annotate image with keypoint locations and centerpoint
+            keypoints (optional): can input keypoints manually but will default to class keypoints
+        Returns:
+            np.ndarray: rotation matrix
+            np.ndarray: position vector
+            np.ndattay: image with annotations, if none is provided, return none
+        """
+        
         if self.keypoints_2d is None and keypoints is None:
             print("No keypoints available")
+            return None, None, None
         if self.keypoints_2d is None:
             kps = keypoints
 
+        # take keypoints and calculate the position in 3D space using depth information
         kpts = self.keypoints_2d
         points3D = []
         for i in range(10):
@@ -122,29 +148,36 @@ class KPModel:
             max_depth = np.max(depth_area)
             ave_depth = np.mean(depth_area)
 
-            cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
+            if img is not None:
+                cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
             
             points3D.append(K.calc_position((x,y), max_depth))
-
-
         points3D = np.array(points3D)
+
+        # calculate a plane using least squares approximation
+        # z = ax+by+c
         A = np.c_[points3D[:, :2], np.ones_like(points3D[:, 0])]
         b = points3D[:, 2]
         x, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
-        # print(x, residuals)
-        
+
+        # 0 = ax+by-z+c
+        # z axis = <a, b, -1> (normalized of course)
         z_axis = np.array([x[0], x[1], -1])
         z_axis /= np.linalg.norm(-z_axis)
 
+        # calculate x axis using two point pairs that form lines paralel to the x axis
         x_axis = points3D[2, :] - points3D[0, :] + points3D[3, :] - points3D[1,:]
         x_axis = x_axis - np.dot(x_axis, z_axis) * z_axis
         x_axis /= np.linalg.norm(x_axis)
         
+        # y axis is z (cross) x
         y_axis = np.cross(z_axis, x_axis)
         y_axis /= np.linalg.norm(y_axis)
 
         rotation = np.column_stack((x_axis, y_axis, z_axis))
 
+
+        # calculate center point by connecting several points that intersect it and averaging their midpoints
         center_pts = [
             (points3D[0, :] + points3D[1, :]) / 2,
             (points3D[4, :] + points3D[8, :]) / 2,
@@ -153,28 +186,11 @@ class KPModel:
 
         ]
         ctr_pt = np.mean(center_pts, axis=0)
-        ctr_px = K.calc_pixels(ctr_pt)
-        cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        if img is not None:
+            ctr_px = K.calc_pixels(ctr_pt)
+            cv2.circle(img, ctr_px, 5, (255,255,255), -1)
         
-        # mp1 = (kpts[0, :2] + kpts[1, :2]) // 2
-        # mp2 = (kpts[4, :2] + kpts[8, :2]) // 2
-        # mp3 = (kpts[5, :2] + kpts[7, :2]) // 2
-        # mp4 = (kpts[6, :2] + kpts[9, :2]) // 2
-
-        # mps = np.array([mp1, mp2, mp3, mp4])
-        # ctr_px = [round(i) for i in np.mean(mps, axis=0)]
-        # area = depth[ctr_px[1]-kernel_size//2:ctr_px[1]+kernel_size//2, ctr_px[0]-kernel_size//2:ctr_px[0]+kernel_size//2]
-        # try:
-        #     ctr_z = np.max(area)
-        #     ctr_pt = K.calc_position(ctr_px, ctr_z)
-        #     cv2.circle(img, ctr_px, 5, (255,255,255), -1)
-        # except ValueError as e:
-        #     print(e)
-            
-        #     ctr_pt = None
-
-
-        return rotation, ctr_pt, img
+        return rotation, ctr_pt, img, residuals
 
 
 def test_model(model: KPModel):
@@ -203,7 +219,7 @@ def test_model(model: KPModel):
 
     img = cv2.imread(f'{img_dir}/color/{test_image}')
     kpts = model.predict(img, bbox)
-    rotation, translation, img = model.predict_position(K, depth_img, 12, img)
+    rotation, translation, img, _ = model.predict_position(K, depth_img, kernel_size=12, img=img)
     if translation is not None:
         H = TransformationMatrix(R = rotation, t=translation)
         annotate_img(img, H, K)
