@@ -22,7 +22,7 @@ from bounding_box import BBoxModel
 
 
 class KPModel:
-    def __init__(self, path = './models/keypoints_detection.pth') -> None:
+    def __init__(self, path = './models/keypoints_detection.pth', alpha=0.75) -> None:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         transform_list = [CropAndPad(out_size=(256, 256))]
@@ -36,13 +36,24 @@ class KPModel:
         checkpoint = torch.load('./models/model_checkpoint.pt')
         self.model.load_state_dict(checkpoint['model'])
 
+        self.rotation = None
+        self.translation = None
+        self.alpha = alpha
+
         self.keypoints_2d = None
         self.keypoints = None
         self.item = None
         self.model.eval()
 
     def predict(self, image, bbox):
-        
+        '''
+        Finds keypoints in image
+        Args: 
+            image: color image
+            bbox: bounding box of fuel cap [xmin, ymin, xmax, ymax]
+        Returns:
+            2d array containing keypoints, with conficences for each point
+        '''
         # convert to PIL image
         image = Image.fromarray(image)
 
@@ -94,6 +105,9 @@ class KPModel:
 
 
     def merge_heatmaps(self):
+        """
+        Creates heatmap, used for visualizations
+        """
         if self.keypoints is None or self.item is None:
             print("No heatmap available") 
         heatmap = np.zeros_like(self.keypoints[0,:,:])
@@ -102,14 +116,31 @@ class KPModel:
         return heatmap
     
 
-    def predict_position(self, K : IntrinsicsMatrix, depth : np.ndarray, kernel_size=12, img=None, keypoints=None):
+    def predict_position(self, K : IntrinsicsMatrix, depth : np.ndarray, kernel_size:int=12, img=None, keypoints=None):
+        """
+        Calculates position and rotaiton of the fuel cap
+        Args:
+            K (IntrinsicsMatrix): Camera Intrinsics, used for pixel-point and point-pixel projections
+            depth (np.ndarray): Depth image 
+            kernel_size (int): size of the square used to get depth at each point
+            img (optional): color image, will annotate image with keypoint locations and centerpoint
+            keypoints (optional): can input keypoints manually but will default to class keypoints
+        Returns:
+            np.ndarray: rotation matrix
+            np.ndarray: position vector
+            np.ndattay: image with annotations, if none is provided, return none
+        """
+        
         if self.keypoints_2d is None and keypoints is None:
             print("No keypoints available")
+            return None, None, None
         if self.keypoints_2d is None:
             kps = keypoints
 
+        # take keypoints and calculate the position in 3D space using depth information
         kpts = self.keypoints_2d
         points3D = []
+        accepted_pts = []
         for i in range(10):
             x,y = self.keypoints_2d[i, :2]
             xi,yi = [round(i) for i in [x,y]]
@@ -117,75 +148,88 @@ class KPModel:
             max_depth = np.max(depth_area)
             ave_depth = np.mean(depth_area)
 
-            cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
-            
-            points3D.append(K.calc_position((x,y), max_depth))
+            try:
+                points3D.append(K.calc_position((x,y), max_depth))
+                if img is not None:
+                    cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
+                accepted_pts.append(True)
+            except:
+                points3D.append(np.ones(3) * np.inf)
+                accepted_pts.append(False)
 
-
+        plane_pts = np.array([pt for i,pt in enumerate(points3D) if accepted_pts[i]])
         points3D = np.array(points3D)
-        A = np.c_[points3D[:, :2], np.ones_like(points3D[:, 0])]
-        b = points3D[:, 2]
+
+        # calculate a plane using least squares approximation
+        # z = ax+by+c
+        A = np.c_[plane_pts[:, :2], np.ones_like(plane_pts[:, 0])]
+        b = plane_pts[:, 2]
         x, residuals, _, _ = np.linalg.lstsq(A, b, rcond=None)
-        # print(x, residuals)
-        
+
+        # 0 = ax+by-z+c
+        # z axis = <a, b, -1> (normalized of course)
         z_axis = np.array([x[0], x[1], -1])
         z_axis /= np.linalg.norm(-z_axis)
 
-        x_axis = points3D[2, :] - points3D[0, :] + points3D[3, :] - points3D[1,:]
-        x_axis = x_axis - np.dot(x_axis, z_axis) * z_axis
-        x_axis /= np.linalg.norm(x_axis)
-        
-        y_axis = np.cross(z_axis, x_axis)
-        y_axis /= np.linalg.norm(y_axis)
+        # calculate x axis using two point pairs that form lines paralel to the x axis
+        line1 = points3D[2, :] - points3D[0, :] if accepted_pts[2] and accepted_pts[0] else None
+        line2 = points3D[3, :] - points3D[1, :] if accepted_pts[3] and accepted_pts[1] else None
+        lines = [i for i in [line1, line2] if i is not None]
+        if len(lines) > 0:
+            x_axis = np.mean(lines, axis=0)
+            x_axis = x_axis - np.dot(x_axis, z_axis) * z_axis
+            x_axis /= np.linalg.norm(x_axis)
+            
+            # y axis is z (cross) x
+            y_axis = np.cross(z_axis, x_axis)
+            y_axis /= np.linalg.norm(y_axis)
 
-        rotation = np.column_stack((x_axis, y_axis, z_axis))
+            rotation = np.column_stack((x_axis, y_axis, z_axis))
+            self.rotation = self.alpha * rotation + (1 - self.alpha) * self.rotation if self.rotation is not None else rotation
+        else:
+            rotation = None
 
+
+        # calculate center point by connecting several points that intersect it and averaging their midpoints
         center_pts = [
-            (points3D[0, :] + points3D[1, :]) / 2,
-            (points3D[4, :] + points3D[8, :]) / 2,
-            (points3D[5, :] + points3D[7, :]) / 2,
-            (points3D[6, :] + points3D[9, :]) / 2
+            (points3D[0, :] + points3D[1, :]) / 2 if accepted_pts[0] and accepted_pts[1] else None,
+            (points3D[4, :] + points3D[8, :]) / 2 if accepted_pts[4] and accepted_pts[8] else None,
+            (points3D[5, :] + points3D[7, :]) / 2 if accepted_pts[5] and accepted_pts[7] else None,
+            (points3D[6, :] + points3D[9, :]) / 2 if accepted_pts[9] and accepted_pts[6] else None
 
         ]
-        ctr_pt = np.mean(center_pts, axis=0)
-        ctr_px = K.calc_pixels(ctr_pt)
-        cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        center_pts = [i for i in center_pts if not i is None]
+        if len(center_pts) != 0:
+            if len(center_pts) == 4:
+
+                ctr_pt = np.mean(center_pts, axis=0)
+                norms = [np.linalg.norm(pt - ctr_pt) for pt in center_pts]
+                max_norm = max(norms)
+                center_pts = [pt for pt, nrm in zip(center_pts, norms) if nrm < max_norm]
+
+            ctr_pt = np.mean(center_pts, axis=0)
+            self.translation = self.alpha * ctr_pt + (1 - self.alpha) * self.translation if self.translation is not None else ctr_pt
+
+            if img is not None:
+                ctr_px = K.calc_pixels(ctr_pt)
+                cv2.circle(img, ctr_px, 5, (255,255,255), -1)
+        else:
+            ctr_pt = None
         
-        # mp1 = (kpts[0, :2] + kpts[1, :2]) // 2
-        # mp2 = (kpts[4, :2] + kpts[8, :2]) // 2
-        # mp3 = (kpts[5, :2] + kpts[7, :2]) // 2
-        # mp4 = (kpts[6, :2] + kpts[9, :2]) // 2
-
-        # mps = np.array([mp1, mp2, mp3, mp4])
-        # ctr_px = [round(i) for i in np.mean(mps, axis=0)]
-        # area = depth[ctr_px[1]-kernel_size//2:ctr_px[1]+kernel_size//2, ctr_px[0]-kernel_size//2:ctr_px[0]+kernel_size//2]
-        # try:
-        #     ctr_z = np.max(area)
-        #     ctr_pt = K.calc_position(ctr_px, ctr_z)
-        #     cv2.circle(img, ctr_px, 5, (255,255,255), -1)
-        # except ValueError as e:
-        #     print(e)
-            
-        #     ctr_pt = None
-
-
-        return rotation, ctr_pt, img
+        return self.rotation, self.translation, img, residuals
+    
+    def reset_positions(self):
+        self.rotation = None
+        self.translation = None
 
 
 def test_model(model: KPModel):
     import json, random, time
     import pandas as pd
 
-
-    img_dir = "./data/GroundTruth"
-    test_image = '1700082959447.png'#random.choice(os.listdir(img_dir))
-
-    #img_dir = "./data/RealWorldBboxData"
+    img_dir = "./data/RealWorldBboxData"
     
-    #test_image = random.choice(os.listdir(f"{img_dir}/color"))
-    print(test_image)
-    # img_data = data[test_image]
-
+    test_image = random.choice(os.listdir(f"{img_dir}/color"))
 
     img = read_image(f'{img_dir}/color/{test_image}')
     depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
@@ -198,14 +242,14 @@ def test_model(model: KPModel):
 
     img = cv2.imread(f'{img_dir}/color/{test_image}')
     kpts = model.predict(img, bbox)
-    rotation, translation, img = model.predict_position(K, depth_img, 12, img)
+    rotation, translation, img, _ = model.predict_position(K, depth_img, kernel_size=12, img=img)
     if translation is not None:
         H = TransformationMatrix(R = rotation, t=translation)
         annotate_img(img, H, K)
     else:
         print("Could not detect center point")
+
     print("Elapsed time", time.time()-t0)
-    print(rotation, translation)
 
     cv2.imshow("Image", img)
     cv2.waitKey(0)
@@ -215,8 +259,9 @@ def test_model(model: KPModel):
 if __name__ == "__main__":
     import time
     model = KPModel()
-    #for i in range(5):
-    test_model(model)
+    for i in range(5):
+        model.reset_positions()
+        test_model(model)
         
         # break
     
