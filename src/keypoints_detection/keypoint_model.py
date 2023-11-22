@@ -223,13 +223,14 @@ class KPModel:
         self.translation = None
 
 
-def test_model(model: KPModel):
+def test_model(model: KPModel, idx = 0):
     import json, random, time
     import pandas as pd
 
     img_dir = "./data/RealWorldBboxData"
-    
-    test_image = random.choice(os.listdir(f"{img_dir}/color"))
+    image_list = os.listdir(f"{img_dir}/color")
+    test_image = random.choice(image_list)
+    # test_image = image_list[idx]
 
     img = read_image(f'{img_dir}/color/{test_image}')
     depth_img = np.load(f'{img_dir}/depth/{test_image[:-4]}.npy')
