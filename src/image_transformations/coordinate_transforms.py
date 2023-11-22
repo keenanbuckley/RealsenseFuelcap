@@ -150,13 +150,15 @@ class IntrinsicsMatrix:
         assert self.matrix.shape == (3,3)
 
     def calc_pixels(self, pose=[0,0,1]):
+        if type(pose) is list:
+
+            pose = np.array(pose, dtype=np.float32)
         # print(pose)
-        if len(pose) != 3:
+        if pose.shape[0] != 3:
             raise ValueError("Position must be in 3D cartesian Coordinates -> ", pose)
         if pose[2] <= 0:
             raise ValueError("Z coordinate must be positive to be seen by the camera, z =", pose[2])
 
-        pose = np.array(pose, dtype=np.float32)
         coords = self.matrix @ pose
 
         pixels = (coords / coords[2])[:2]
