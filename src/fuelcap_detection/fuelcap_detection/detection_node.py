@@ -22,22 +22,23 @@ from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from std_msgs.msg import Header
 
 class DetectionNode(Node):
-    def __init__(self, exposure: int = 7500, enable_annotations=False):
+    def __init__(self, exposure: int = None, enable_annotations=False):
         super().__init__('fuelcap_detection')
         self.bridge = CvBridge()
         self.enable_annotations = enable_annotations
 
-        # Parameters to automatically change for the realsense node
-        camera_parameters = list()
-        camera_parameters.append(ParameterMsg(name='depth_module.exposure', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=exposure)))
-        
-        # Wait until realsense node is active, then change its parameters
-        msg = SetParameters.Request()
-        msg.parameters = camera_parameters
-        self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
-        while not self.cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('realsense service not available, waiting again...')
-        self.cli.call_async(msg)
+        if not exposure is None:
+            # Parameters to automatically change for the realsense node
+            camera_parameters = list()
+            camera_parameters.append(ParameterMsg(name='depth_module.exposure', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=exposure)))
+            
+            # Wait until realsense node is active, then change its parameters
+            msg = SetParameters.Request()
+            msg.parameters = camera_parameters
+            self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
+            while not self.cli.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info('realsense service not available, waiting again...')
+            self.cli.call_async(msg)
 
         # Create subscribers to the realsense color and depth topics
         self.color_subscription = self.create_subscription(
@@ -120,8 +121,8 @@ def main(args=None):
         exposure = int(py_args[0])
         print(f'Exposure set to {exposure}')
     except:
-        print("No exposure detected, setting to 7500")
-        exposure = 7500
+        print("No exposure detected")
+        exposure = None
 
     rclpy.init(args=args)
     detection_node = DetectionNode(exposure=exposure, enable_annotations=True)
