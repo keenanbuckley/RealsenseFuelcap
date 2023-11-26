@@ -144,11 +144,11 @@ class KPModel:
         for i in range(10):
             x,y = self.keypoints_2d[i, :2]
             xi,yi = [round(i) for i in [x,y]]
-            depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
-            max_depth = np.max(depth_area)
-            ave_depth = np.mean(depth_area)
 
             try:
+                depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
+                max_depth = np.max(depth_area)
+                ave_depth = np.mean(depth_area)
                 points3D.append(K.calc_position((x,y), max_depth))
                 if img is not None:
                     cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
@@ -200,17 +200,20 @@ class KPModel:
         ]
         center_pts = [i for i in center_pts if not i is None]
         if len(center_pts) != 0:
-            if len(center_pts) == 4:
-
+            if len(center_pts) >= 3:
                 ctr_pt = np.mean(center_pts, axis=0)
                 norms = [np.linalg.norm(pt - ctr_pt) for pt in center_pts]
                 max_norm = max(norms)
                 center_pts = [pt for pt, nrm in zip(center_pts, norms) if nrm < max_norm]
 
-            ctr_pt = np.mean(center_pts, axis=0)
+            if len(center_pts) > 1:
+                ctr_pt = np.mean(center_pts, axis=0)
+            else:
+                ctr_pt = center_pts[0]
+
             self.translation = self.alpha * ctr_pt + (1 - self.alpha) * self.translation if self.translation is not None else ctr_pt
 
-            if img is not None:
+            if img is not None and len(ctr_pt) == 3:
                 ctr_px = K.calc_pixels(ctr_pt)
                 cv2.circle(img, ctr_px, 5, (255,255,255), -1)
         else:
