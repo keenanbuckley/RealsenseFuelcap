@@ -93,7 +93,7 @@ class DetectionNode(Node):
         bbox, score = self.bboxModel.find_bbox(pilimage)
         if not bbox is None:
             kpts = self.kpModel.predict(image_color, bbox)
-            rotation, translation, image_color = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
+            rotation, translation, image_color, _ = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
             if not translation is None:
                 H = TransformationMatrix(R=rotation, t=translation)
                 annotate_img(image_color, H, self.K)
