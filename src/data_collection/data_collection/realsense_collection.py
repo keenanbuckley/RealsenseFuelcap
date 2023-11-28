@@ -145,7 +145,7 @@ def main(args=None):
 
     try:
         rclpy.spin(realsense_subscriber)
-    except EOFError:
+    except SystemExit:
         pass
 
     realsense_subscriber.destroy_node()
