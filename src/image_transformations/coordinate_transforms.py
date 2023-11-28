@@ -256,9 +256,12 @@ def annotate_img(img: np.ndarray, H: TransformationMatrix, K: IntrinsicsMatrix, 
     o,x,y,z = pixels
 
     thickness = line_width
+    cv2.line(img, o, x, (255,255,255), thickness+3)
     cv2.line(img, o, x, (0,0,255), thickness)
+    cv2.line(img, o, y, (255,255,255), thickness+3)
     cv2.line(img, o, y, (0,255,0), thickness)
-    cv2.line(img, o, z, (255,0,0), thickness)
+    cv2.line(img, o, z, (255,255,255), thickness+3)
+    cv2.line(img, o, z, (255,150,0), thickness)
 
     return img
 
