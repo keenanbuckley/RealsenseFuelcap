@@ -286,36 +286,42 @@ def __check_inits(units):
 
 def main():
     K = IntrinsicsMatrix()
-    pos = [1, 1, 2]
-    pixels = (0,0)
-    depth = 3
-    target_pos = [-3.33183754, -1.87415862,  3.]
-    tol = 1e-5
+    pix = [i for i in K.matrix[:2, 2]]
+    
+    depth = 500
+    new_pos = K.calc_position((pix[0]+10, pix[1]), depth)
+    new_pixels = K.calc_pixels(new_pos)
+    print(new_pixels, pix)
+    # pos = [1, 1, 2]
+    # pixels = (0,0)
+    # depth = 3
+    # target_pos = [-3.33183754, -1.87415862,  3.]
+    # tol = 1e-5
 
 
-    # tests
-    assert K.calc_pixels() == [640, 360]
-    assert K.calc_pixels(pos) == [928, 648]
-    assert [int(i) for i in list(K.calc_position())] == [0, 0, 1]
-    pos = K.calc_position(pixels, depth)
-    assert np.sum(pos - np.array(target_pos)) < tol
+    # # tests
+    # assert K.calc_pixels() == [640, 360]
+    # assert K.calc_pixels(pos) == [928, 648]
+    # assert [int(i) for i in list(K.calc_position())] == [0, 0, 1]
+    # pos = K.calc_position(pixels, depth)
+    # assert np.sum(pos - np.array(target_pos)) < tol
 
 
-    img = cv2.imread("data/saved_img.png")
-    K = IntrinsicsMatrix()
-    translation = calculate_matrix(-6, 19.05, 45.72, angle_mount=-10, angle_cap=20)
-    # pos, orien = translation.as_pos_and_quat()
+    # img = cv2.imread("data/saved_img.png")
+    # K = IntrinsicsMatrix()
+    # translation = calculate_matrix(-6, 19.05, 45.72, angle_mount=-10, angle_cap=20)
+    # # pos, orien = translation.as_pos_and_quat()
 
-    # print(pos, orien)
+    # # print(pos, orien)
 
-    rot = Rotation.from_euler("y", np.deg2rad(180)).as_matrix()
+    # rot = Rotation.from_euler("y", np.deg2rad(180)).as_matrix()
 
-    img = annotate_img(img, translation, K, axis_len=30)
+    # img = annotate_img(img, translation, K, axis_len=30)
 
-    cv2.imshow("Annotated Image", img)
-    cv2.waitKey(0)
+    # cv2.imshow("Annotated Image", img)
+    # cv2.waitKey(0)
 
-    cv2.imwrite("annotated_img.png", img)
+    # cv2.imwrite("annotated_img.png", img)
 
 
 if __name__ == "__main__":

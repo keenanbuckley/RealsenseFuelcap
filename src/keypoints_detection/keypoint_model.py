@@ -7,8 +7,13 @@ from torchvision import transforms
 from PIL import Image
 import os
 #from os import join
-from keypoints_detection.hourglass import hg
-from keypoints_detection.transformations import *
+
+try:
+    from keypoints_detection.hourglass import hg
+    from keypoints_detection.transformations import *
+except:
+    from keypoints_detection.hourglass import hg
+    from keypoints_detection.transformations import *
 
 from time import time
 import numpy as np
@@ -93,8 +98,8 @@ class KPModel:
         width = self.item['width']
 
         scale = self.item['scale'][0]
-        if not type(width) is np.float32:
-            #print(type(width))
+        if torch.is_tensor(width):
+            print(type(width))
             width = width.numpy()
         # image shrunk by factor of 4, reduced by scale, and moved to bounding box. Must undo
         y_coords = 4*y_coords * scale + center_y - width // 2
@@ -147,7 +152,7 @@ class KPModel:
             depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
             max_depth = np.max(depth_area)
             ave_depth = np.mean(depth_area)
-
+            
             try:
                 points3D.append(K.calc_position((x,y), max_depth))
                 if img is not None:
@@ -237,7 +242,7 @@ def test_model(model: KPModel, idx = 0):
     K = IntrinsicsMatrix()
 
     t0 = time.time()
-    bboxModel = BBoxModel("models/bbox_net_trained.pth")
+    bboxModel = BBoxModel("models/bbox_net_trained_2.pth")
     bbox, score = bboxModel.find_bbox(img)
     bbox = bbox.numpy()
 
