@@ -27,7 +27,7 @@ from bounding_box import BBoxModel
 
 
 class KPModel:
-    def __init__(self, path = './models/keypoints_detection.pth', alpha=0.75) -> None:
+    def __init__(self, path = './models/model_checkpoint.pt', alpha=0.75) -> None:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         transform_list = [CropAndPad(out_size=(256, 256))]
@@ -38,7 +38,7 @@ class KPModel:
 
         #self.model = torch.load(path)
         self.model = hg(num_stacks=1, num_blocks=1, num_classes=10).to(self.device)
-        checkpoint = torch.load('./models/model_checkpoint.pt')
+        checkpoint = torch.load(path)
         self.model.load_state_dict(checkpoint['model'])
 
         self.rotation = None
@@ -149,11 +149,11 @@ class KPModel:
         for i in range(10):
             x,y = self.keypoints_2d[i, :2]
             xi,yi = [round(i) for i in [x,y]]
-            depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
-            max_depth = np.max(depth_area)
-            ave_depth = np.mean(depth_area)
-            
+
             try:
+                depth_area = depth[yi-kernel_size//2:yi+kernel_size//2, xi-kernel_size//2:xi+kernel_size//2]
+                max_depth = np.max(depth_area)
+                ave_depth = np.mean(depth_area)
                 points3D.append(K.calc_position((x,y), max_depth))
                 if img is not None:
                     cv2.rectangle(img, (xi-kernel_size//2, yi-kernel_size//2), (xi+kernel_size//2, yi+kernel_size//2), (0,255,255), 1)
@@ -192,7 +192,7 @@ class KPModel:
             rotation = np.column_stack((x_axis, y_axis, z_axis))
             self.rotation = self.alpha * rotation + (1 - self.alpha) * self.rotation if self.rotation is not None else rotation
         else:
-            rotation = None
+            self.rotation = self.rotation
 
 
         # calculate center point by connecting several points that intersect it and averaging their midpoints
@@ -204,22 +204,24 @@ class KPModel:
 
         ]
         center_pts = [i for i in center_pts if not i is None]
-        if len(center_pts) != 0:
-            if len(center_pts) == 4:
-
+        if len(center_pts) > 0:
+            if len(center_pts) >= 3:
                 ctr_pt = np.mean(center_pts, axis=0)
                 norms = [np.linalg.norm(pt - ctr_pt) for pt in center_pts]
                 max_norm = max(norms)
                 center_pts = [pt for pt, nrm in zip(center_pts, norms) if nrm < max_norm]
+            if len(center_pts) > 1:
+                ctr_pt = np.mean(center_pts, axis=0)
+            elif len(center_pts) == 1:
+                ctr_pt = center_pts[0]
 
-            ctr_pt = np.mean(center_pts, axis=0)
             self.translation = self.alpha * ctr_pt + (1 - self.alpha) * self.translation if self.translation is not None else ctr_pt
 
-            if img is not None:
+            if img is not None and len(ctr_pt) == 3:
                 ctr_px = K.calc_pixels(ctr_pt)
                 cv2.circle(img, ctr_px, 5, (255,255,255), -1)
         else:
-            ctr_pt = None
+            self.translation = self.translation
         
         return self.rotation, self.translation, img, residuals
     

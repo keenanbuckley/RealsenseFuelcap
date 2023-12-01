@@ -13,6 +13,8 @@ alias data_collection_launch="cd ~/mines_ws && source install/setup.bash && ros2
 alias capture_image="cd ~/mines_ws && source install/setup.bash && ros2 service call /capture_image custom_interfaces/srv/CaptureImage \"{path: 'data'}\""
 # Start fuelcap detection
 alias fuelcap_detection_launch="cd ~/mines_ws && source install/setup.bash && ros2 run fuelcap_detection detection"
+# Display fuelcap detection message to console
+alias detection_info_launch="cd ~/mines_ws && source install/setup.bash && ros2 run fuelcap_detection info"
 
 ### DEPRICATED: old gazebo aliases
 # Gazebo Setup --For debugging, Should be done when image is built

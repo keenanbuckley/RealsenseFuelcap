@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'detection = fuelcap_detection.detection_node:main',
+            'info = fuelcap_detection.detection_info_subscriber:main'
         ],
     },
 )

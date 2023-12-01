@@ -162,7 +162,7 @@ class IntrinsicsMatrix:
         coords = self.matrix @ pose
 
         pixels = (coords / coords[2])[:2]
-        return [round(p) for p in pixels]
+        return [round(p) if not np.isnan(p) else 0 for p in pixels]
     
     def calc_position(self, pixels: tuple = (640, 360), depth=1):
         '''
@@ -210,7 +210,7 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
         x,y,z = [i * 10 for i in [x,y,z]]
 
     # shrink y by height of the mount, which is 1.25 inches
-    y -= 25.4 * (1.25 + 0.25)
+    y -= 25.4 * (1.2)
 
     # world2left transformation matrix
     world2left = np.array(
@@ -223,7 +223,7 @@ def calculate_matrix(x: float, y: float, z: float, angle_mount: float = 0, angle
     H = H * Rotation.from_euler('z', -angle_cap, degrees=True).as_matrix()
     #H = H * Rotation.from_euler('y', -10, degrees=True).as_matrix()
     H = H * np.array([x,y,z])
-    H = H * Rotation.from_euler('y', angles=180+angle_mount, degrees=True).as_matrix()
+    H = H * Rotation.from_euler('y', angles=180-angle_mount, degrees=True).as_matrix()
     H = H * __mount_to_camera_translation()
     H = H * world2left
 
@@ -256,9 +256,12 @@ def annotate_img(img: np.ndarray, H: TransformationMatrix, K: IntrinsicsMatrix, 
     o,x,y,z = pixels
 
     thickness = line_width
+    cv2.line(img, o, x, (255,255,255), thickness+3)
     cv2.line(img, o, x, (0,0,255), thickness)
+    cv2.line(img, o, y, (255,255,255), thickness+3)
     cv2.line(img, o, y, (0,255,0), thickness)
-    cv2.line(img, o, z, (255,0,0), thickness)
+    cv2.line(img, o, z, (255,255,255), thickness+3)
+    cv2.line(img, o, z, (255,150,0), thickness)
 
     return img
 
@@ -273,7 +276,7 @@ def __mount_to_camera_translation(units: str="mm") -> np.ndarray:
     # return np.zeros(3)
     x = float(camera_instrinsics['baseline'])/2     # cameras are 18 mm apart
     y = -42 / 2                                     # cameras are located on middle of camera in y, and cam is 42 mm tall
-    z = 10.95                                       # z distance between mounting hole and z = 0 on depth module
+    z = 23 - 8.35 - 3.7                             # z distance between mounting hole and z = 0 on depth module
 
     trans = np.array([x,y,z], dtype = np.float32)
     

@@ -13,6 +13,7 @@ import PIL
 from rclpy.node import Node
 from rcl_interfaces.srv import SetParameters
 from custom_interfaces.srv import CaptureImage
+from custom_interfaces.msg import FuelCapDetectionInfo
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
@@ -22,22 +23,23 @@ from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
 from std_msgs.msg import Header
 
 class DetectionNode(Node):
-    def __init__(self, exposure: int = 7500, enable_annotations=False):
+    def __init__(self, exposure: int = None, enable_annotations=False):
         super().__init__('fuelcap_detection')
         self.bridge = CvBridge()
         self.enable_annotations = enable_annotations
 
-        # Parameters to automatically change for the realsense node
-        camera_parameters = list()
-        camera_parameters.append(ParameterMsg(name='depth_module.exposure', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=exposure)))
-        
-        # Wait until realsense node is active, then change its parameters
-        msg = SetParameters.Request()
-        msg.parameters = camera_parameters
-        self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
-        while not self.cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('realsense service not available, waiting again...')
-        self.cli.call_async(msg)
+        if not exposure is None:
+            # Parameters to automatically change for the realsense node
+            camera_parameters = list()
+            camera_parameters.append(ParameterMsg(name='depth_module.exposure', value=ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=exposure)))
+            
+            # Wait until realsense node is active, then change its parameters
+            msg = SetParameters.Request()
+            msg.parameters = camera_parameters
+            self.cli = self.create_client(SetParameters, '/camera/camera/set_parameters')
+            while not self.cli.wait_for_service(timeout_sec=1.0):
+                self.get_logger().info('realsense service not available, waiting again...')
+            self.cli.call_async(msg)
 
         # Create subscribers to the realsense color and depth topics
         self.color_subscription = self.create_subscription(
@@ -50,6 +52,9 @@ class DetectionNode(Node):
             '/camera/aligned_depth_to_color/image_raw',
             self.depth_listener_callback,
             10)
+
+        # Create publisher for detection info
+        self.detection_info_publisher = self.create_publisher(FuelCapDetectionInfo, 'fuelcap_detection_info', 10)
         
         # Create publisher for annotated images
         if self.enable_annotations:
@@ -61,7 +66,7 @@ class DetectionNode(Node):
 
         # Initialize the bounding box and keypoints DL models
         self.bboxModel = BBoxModel("models/bbox_net_trained.pth")
-        self.kpModel = KPModel(path="models/keypoints_detection.pth")
+        self.kpModel = KPModel(path="models/model_checkpoint_3.pt")
         self.K = IntrinsicsMatrix()
         self.pose_msg = PoseStamped()
     
@@ -80,6 +85,7 @@ class DetectionNode(Node):
             self.depth_img_msg = None
     
     def rgbd_callback(self):
+        inference_start_time = time.time()
         try:
             image_color = self.bridge.imgmsg_to_cv2(self.color_img_msg, desired_encoding="bgr8")
             image_depth = self.bridge.imgmsg_to_cv2(self.depth_img_msg, desired_encoding="16UC1")
@@ -92,21 +98,42 @@ class DetectionNode(Node):
         bbox, score = self.bboxModel.find_bbox(pilimage)
         if not bbox is None:
             kpts = self.kpModel.predict(image_color, bbox)
-            rotation, translation, image_color = self.kpModel.predict_position(self.K, image_depth, 12, image_color)
-            if not translation is None:
+            rotation, translation, _, _ = self.kpModel.predict_position(self.K, image_depth, 12)
+            bbox = [round(x) for x in bbox.tolist()]
+            cv2.rectangle(image_color, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255,255,0), 2)
+            if not translation is None and not rotation is None:
                 H = TransformationMatrix(R=rotation, t=translation)
                 annotate_img(image_color, H, self.K)
                 position, orientation = H.as_pos_and_quat()
-                #self.pose_msg.pose.position = Point(*position)
-                #self.pose_msg.pose.orientation = Quaternion(*orientation)
+                self.pose_msg.pose.position.x = float(position[0])
+                self.pose_msg.pose.position.y = float(position[1])
+                self.pose_msg.pose.position.z = float(position[2])
+                self.pose_msg.pose.orientation.x = float(orientation[0])
+                self.pose_msg.pose.orientation.y = float(orientation[1])
+                self.pose_msg.pose.orientation.z = float(orientation[2])
+                self.pose_msg.pose.orientation.w = float(orientation[3])
                 # TODO: set header for pose stamped
-                #self.pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
+                self.pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
+                self.publish_detection_info(inference_start_time, score, True, "")
             else:
                 self.get_logger().error(f"Could not calculate position")
+                self.publish_detection_info(inference_start_time, score, False, "Could not calculate position")
+                self.kpModel.reset_positions()
         else:
             self.get_logger().error(f"No BBox detected")
+            self.publish_detection_info(inference_start_time, 0, False, "No BBox detected")
+            self.kpModel.reset_positions()
         if self.enable_annotations:
             self.publish_annotated_image(image_color)
+    
+    def publish_detection_info(self, inference_start_time, bbox_score, is_fuelcap_detected, detection_info):
+        msg = FuelCapDetectionInfo()
+        msg.inference_time = float(time.time() - inference_start_time)
+        msg.bbox_confidence_score = float(bbox_score)
+        msg.is_fuelcap_detected = bool(is_fuelcap_detected)
+        msg.detection_info = str(detection_info)
+        msg.pose_stamped = self.pose_msg
+        self.detection_info_publisher.publish(msg)
 
     def publish_annotated_image(self, annotated_image):
         msg = self.bridge.cv2_to_imgmsg(np.array(annotated_image), "bgr8")
@@ -120,15 +147,15 @@ def main(args=None):
         exposure = int(py_args[0])
         print(f'Exposure set to {exposure}')
     except:
-        print("No exposure detected, setting to 7500")
-        exposure = 7500
+        print("No exposure detected")
+        exposure = None
 
     rclpy.init(args=args)
     detection_node = DetectionNode(exposure=exposure, enable_annotations=True)
 
     try:
         rclpy.spin(detection_node)
-    except EOFError:
+    except SystemExit:
         pass
 
     detection_node.destroy_node()

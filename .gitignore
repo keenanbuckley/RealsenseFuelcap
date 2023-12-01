@@ -19,4 +19,4 @@ drive_data
 posefromkeypoints
 data/image_list.txt
 models/
-realsense_bag
+realsense_bag/

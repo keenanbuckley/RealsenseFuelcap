@@ -16,11 +16,11 @@ if __name__ == "__main__":
         angle_mount = row["angle_mount"]
         angle_cap = row["angle_cap"]
         
-        H_u_min = calculate_matrix(x-0.25,y,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
-        H_v_min = calculate_matrix(x,y-0.25,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
-        H_v_max = calculate_matrix(x,y+0.25,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
-        H_u_max = calculate_matrix(x+0.25,y,z,angle_mount=-(angle_mount), angle_cap=angle_cap, units='in')
-        H = calculate_matrix(x,y,z,angle_mount=-angle_mount, angle_cap=angle_cap, units='in')
+        H_u_min = calculate_matrix(x-0.25,y,z,angle_mount=(angle_mount), angle_cap=angle_cap, units='in')
+        H_v_min = calculate_matrix(x,y-0.25,z,angle_mount=(angle_mount), angle_cap=angle_cap, units='in')
+        H_v_max = calculate_matrix(x,y+0.25,z,angle_mount=(angle_mount), angle_cap=angle_cap, units='in')
+        H_u_max = calculate_matrix(x+0.25,y,z,angle_mount=(angle_mount), angle_cap=angle_cap, units='in')
+        H = calculate_matrix(x,y,z,angle_mount=angle_mount, angle_cap=angle_cap, units='in')
         K = IntrinsicsMatrix()
         img = cv2.imread(f"data/GroundTruth/color/{name}.png")
 
