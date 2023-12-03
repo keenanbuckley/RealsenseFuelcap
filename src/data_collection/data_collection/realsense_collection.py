@@ -14,12 +14,10 @@ import sys
 import os
 
 class RealsenseCollection(Node):
-    def __init__(self, exposure: int = 7500,  n_pictures: int = 1, rate: int = 1):
+    def __init__(self, exposure: int = 7500):
         super().__init__('realsense_subscriber')
         self.bridge = CvBridge()
-        self.n_pictures = n_pictures
         self.n_recieved = 0
-        self.rate = rate
         timer_period = 1
 
         parameters = list()
@@ -62,7 +60,7 @@ class RealsenseCollection(Node):
     def capture_image_callback(self, request, response):
         path = request.path
         timestamp = int(1000*time.time())
-        self.get_logger().info(f'{int(self.n_recieved / self.rate)} of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
+        self.get_logger().info(f'{self.n_recieved} of shape: {self.color_img_msg.width}x{self.color_img_msg.height}')
         self.get_logger().info(f'frame_id: color {self.color_img_msg.header.stamp}, depth {self.depth_img_msg.header.stamp}')
 
         try:
@@ -123,22 +121,6 @@ def main(args=None):
     except:
         print("No exposure detected, setting to 7500")
         exposure = 7500
-    
-    '''
-    try:
-        n = int(py_args[1])
-        print(f"Collecting {n} pictures")
-    except:
-        print("No arguments detected, collecting 1000 pictures")
-        n = 1
-
-    try: 
-        rate = int(py_args[2])
-        print(f'Rate set to {rate}')
-    except:
-        print("No rate detected, setting to 1")
-        rate = 1
-    '''
 
     rclpy.init(args=args)
     realsense_subscriber = RealsenseCollection(exposure=exposure)
@@ -146,6 +128,8 @@ def main(args=None):
     try:
         rclpy.spin(realsense_subscriber)
     except SystemExit:
+        pass
+    except KeyboardInterrupt:
         pass
 
     realsense_subscriber.destroy_node()
