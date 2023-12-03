@@ -23,11 +23,11 @@ from bounding_box import BBoxModel
 
 
 class KPModel:
-    def __init__(self, path = './models/model_checkpoint.pt', alpha=0.75) -> None:
+    def __init__(self, path = './models/keypoint_checkpoint.pt', alpha=0.75) -> None:
         """Keypoint Model Constructor
 
         Args:
-            path (str, optional): Path to model checkpoint. Defaults to './models/model_checkpoint.pt'.
+            path (str, optional): Path to model checkpoint. Defaults to './models/keypoint_checkpoint.pt'.
             alpha (float, optional): Learning rate for EWMA, dampens large changes in keypoint position. Defaults to 0.75.
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -261,20 +261,21 @@ class KPModel:
         self.translation = None
 
 
-def test_model(model: KPModel, idx:int = 0):
+def test_model(kp_model: KPModel, bbox_model: BBoxModel, img_dir: str, idx = 0):
     """Show model annotations for random image, can choose a specific image by specifying idx and uncommenting 
         "# test_image = image_list[idx]"
        
 
     Args:
-        model (KPModel): keypoint model to test
+        kp_model (KPModel): keypoint model to test
+        bbox_model (BBoxModel): bounding box model to test
+        img_dir (str): directory containing color and depth folders
         idx (int, optional): index of the image you wish to annotate. Defaults to 0.
     """
     import json, random, time
     import pandas as pd
 
     # obtain image of fuelcap from dataset
-    img_dir = "./data/RealWorldBboxData"
     image_list = os.listdir(f"{img_dir}/color")
     test_image = random.choice(image_list)
     # test_image = image_list[idx]
@@ -289,15 +290,13 @@ def test_model(model: KPModel, idx:int = 0):
     t0 = time.time()
 
     # obtain bounding box from image using bboxModel
-    bboxModel = BBoxModel("models/bbox_net_trained_2.pth")
-    bbox, score = bboxModel.find_bbox(img)
+    bbox, score = bbox_model.find_bbox(img)
     bbox = bbox.numpy()
 
     # obtain position from keypoints model
     img = cv2.imread(f'{img_dir}/color/{test_image}')
-    kpts = model.predict(img, bbox)
-    rotation, translation, img, _ = model.predict_position(K, depth_img, kernel_size=12, img=img)
-
+    kpts = kp_model.predict(img, bbox)
+    rotation, translation, img, _ = kp_model.predict_position(K, depth_img, kernel_size=12, img=img)
     if translation is not None:
         H = TransformationMatrix(R = rotation, t=translation)
         annotate_img(img, H, K)
@@ -313,10 +312,12 @@ def test_model(model: KPModel, idx:int = 0):
 
 if __name__ == "__main__":
     # test the model when running this file
-    model = KPModel()
+    kp_model = KPModel("models/keypoint_checkpoint.pt")
+    bbox_model = BBoxModel("models/bbox_model.pth")
+    img_dir = "./data/GroundTruth"
     for i in range(5):
-        model.reset_positions()
-        test_model(model)
+        kp_model.reset_positions()
+        test_model(kp_model, bbox_model, img_dir)
         
         # break
     
