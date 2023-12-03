@@ -1,8 +1,6 @@
-################################################
-######### FILE IS NOT COMPLETE #################
-################################################
-# TODO: VERYIFY intrinsics matrix
-# TODO: Verity translation matrix
+##########################################################
+############### Calculates 2D-3D and 3D-3D ###############
+##########################################################
 
 from typing import List, Union
 
@@ -91,7 +89,7 @@ class TransformationMatrix:
         """
         return self.matrix
     
-    def as_pos_and_quat(self) -> tuple(np.ndarray):
+    def as_pos_and_quat(self):
         """_summary_
 
         Returns:
@@ -335,6 +333,7 @@ def __mount_to_camera_translation(units: str="mm") -> np.ndarray:
     trans = np.array([x,y,z], dtype = np.float32)
     
     return trans
+
 
 def __check_inits(units):
     if units not in ["mm", "cm", "in"]:
