@@ -3,7 +3,8 @@ import cv2, numpy as np
 from coordinate_transforms import TransformationMatrix, IntrinsicsMatrix, calculate_matrix, annotate_img
 
 if __name__ == "__main__":
-        
+    """Show annotations for ground truth data
+    """
     df = pd.read_csv("data/GroundTruth/fuelcap_data.csv")
     # print(df.head())
     for idx, row in df.iterrows():
