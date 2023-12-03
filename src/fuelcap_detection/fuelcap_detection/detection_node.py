@@ -17,13 +17,13 @@ from custom_interfaces.msg import FuelCapDetectionInfo
 
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
-from rclpy.parameter import Parameter, ParameterMsg, ParameterType, ParameterValue
+from rclpy.parameter import ParameterMsg, ParameterType, ParameterValue
 
-from geometry_msgs.msg import PoseStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
 
 class DetectionNode(Node):
-    def __init__(self, exposure: int = None, enable_annotations=False):
+    def __init__(self, bbox_model: BBoxModel, kp_model: KPModel, exposure: int = None, enable_annotations=False):
         super().__init__('fuelcap_detection')
         self.bridge = CvBridge()
         self.enable_annotations = enable_annotations
@@ -65,8 +65,8 @@ class DetectionNode(Node):
         self.depth_img_msg = None
 
         # Initialize the bounding box and keypoints DL models
-        self.bboxModel = BBoxModel("models/bbox_net_trained.pth")
-        self.kpModel = KPModel(path="models/model_checkpoint_3.pt")
+        self.bbox_model = bbox_model
+        self.kp_model = kp_model
         self.K = IntrinsicsMatrix()
         self.pose_msg = PoseStamped()
     
@@ -94,11 +94,11 @@ class DetectionNode(Node):
             return
         
         image_depth = np.array(image_depth, dtype=np.uint16)
-        pilimage = PIL.Image.fromarray(image_color)
-        bbox, score = self.bboxModel.find_bbox(pilimage)
+        pil_image = PIL.Image.fromarray(image_color)
+        bbox, score = self.bbox_model.find_bbox(pil_image)
         if not bbox is None:
-            kpts = self.kpModel.predict(image_color, bbox)
-            rotation, translation, _, _ = self.kpModel.predict_position(self.K, image_depth, 12)
+            kpts = self.kp_model.predict(image_color, bbox)
+            rotation, translation, _, _ = self.kp_model.predict_position(self.K, image_depth, 12)
             bbox = [round(x) for x in bbox.tolist()]
             cv2.rectangle(image_color, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255,255,0), 2)
             if not translation is None and not rotation is None:
@@ -118,11 +118,11 @@ class DetectionNode(Node):
             else:
                 self.get_logger().error(f"Could not calculate position")
                 self.publish_detection_info(inference_start_time, score, False, "Could not calculate position")
-                self.kpModel.reset_positions()
+                self.kp_model.reset_positions()
         else:
             self.get_logger().error(f"No BBox detected")
             self.publish_detection_info(inference_start_time, 0, False, "No BBox detected")
-            self.kpModel.reset_positions()
+            self.kp_model.reset_positions()
         if self.enable_annotations:
             self.publish_annotated_image(image_color)
     
@@ -149,9 +149,12 @@ def main(args=None):
     except:
         print("No exposure detected")
         exposure = None
+    
+    bbox_model = BBoxModel("models/bbox_model.pth")
+    kp_model = KPModel("models/keypoint_checkpoint.pt")
 
     rclpy.init(args=args)
-    detection_node = DetectionNode(exposure=exposure, enable_annotations=True)
+    detection_node = DetectionNode(bbox_model, kp_model, exposure=exposure, enable_annotations=True)
 
     try:
         rclpy.spin(detection_node)
