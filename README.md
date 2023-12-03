@@ -21,6 +21,31 @@ For information on Unity Data Collection, please refer to the following GitHub r
 - VScode
 - Docker
 
+## Running Code
+
+
+Once all dependencies are met, you can run the code using the following procedure
+
+### Linux
+
+- build and run the docker file. To do so execute the following command:
+   ```
+      xhost +local:root 
+      docker run -it --runtime=nvidia --net host --ipc host -e "DISPLAY=$DISPLAY" \
+         -v "$HOME/.Xauthority:/root/.Xauthority:ro" --privileged \
+         -v $HOME/path/to/repository:/home/mines/mines_ws \
+         --rm --name cuda_container mines_cuda
+   ```
+- source the bashfile
+   ```
+      source .bashrc
+   ```
+
+- Build the ROS workspace by running the alias:
+   ```
+      ros_build
+   ```
+TODO: finish
 ## Contributing
 
 (Existing content or instructions on how to contribute to the project)
