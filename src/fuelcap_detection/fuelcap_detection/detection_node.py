@@ -12,7 +12,6 @@ import PIL
 
 from rclpy.node import Node
 from rcl_interfaces.srv import SetParameters
-from custom_interfaces.srv import CaptureImage
 from custom_interfaces.msg import FuelCapDetectionInfo
 
 from cv_bridge import CvBridge, CvBridgeError
@@ -68,7 +67,18 @@ class DetectionNode(Node):
         self.bbox_model = bbox_model
         self.kp_model = kp_model
         self.K = IntrinsicsMatrix()
-        self.pose_msg = PoseStamped()
+        self.pose_stamped = PoseStamped()
+    
+    def convert_to_pose_stamped(position, orientation):
+        pose_stamped = PoseStamped()
+        pose_stamped.pose.position.x = float(position[0])
+        pose_stamped.pose.position.y = float(position[1])
+        pose_stamped.pose.position.z = float(position[2])
+        pose_stamped.pose.orientation.x = float(orientation[0])
+        pose_stamped.pose.orientation.y = float(orientation[1])
+        pose_stamped.pose.orientation.z = float(orientation[2])
+        pose_stamped.pose.orientation.w = float(orientation[3])
+        return pose_stamped
     
     def color_listener_callback(self, img_msg: Image):
         self.color_img_msg = img_msg
@@ -97,7 +107,7 @@ class DetectionNode(Node):
         pil_image = PIL.Image.fromarray(image_color)
         bbox, score = self.bbox_model.find_bbox(pil_image)
         if not bbox is None:
-            kpts = self.kp_model.predict(image_color, bbox)
+            self.kp_model.predict(image_color, bbox)
             rotation, translation, _, _ = self.kp_model.predict_position(self.K, image_depth, 12)
             bbox = [round(x) for x in bbox.tolist()]
             cv2.rectangle(image_color, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (255,255,0), 2)
@@ -105,15 +115,8 @@ class DetectionNode(Node):
                 H = TransformationMatrix(R=rotation, t=translation)
                 annotate_img(image_color, H, self.K)
                 position, orientation = H.as_pos_and_quat()
-                self.pose_msg.pose.position.x = float(position[0])
-                self.pose_msg.pose.position.y = float(position[1])
-                self.pose_msg.pose.position.z = float(position[2])
-                self.pose_msg.pose.orientation.x = float(orientation[0])
-                self.pose_msg.pose.orientation.y = float(orientation[1])
-                self.pose_msg.pose.orientation.z = float(orientation[2])
-                self.pose_msg.pose.orientation.w = float(orientation[3])
-                # TODO: set header for pose stamped
-                self.pose_msg.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
+                self.pose_stamped = self.convert_to_pose_stamped(position, orientation)
+                self.pose_stamped.header = Header(stamp=self.color_img_msg.header.stamp, frame_id='base_link')
                 self.publish_detection_info(inference_start_time, score, True, "")
             else:
                 self.get_logger().error(f"Could not calculate position")
@@ -132,7 +135,7 @@ class DetectionNode(Node):
         msg.bbox_confidence_score = float(bbox_score)
         msg.is_fuelcap_detected = bool(is_fuelcap_detected)
         msg.detection_info = str(detection_info)
-        msg.pose_stamped = self.pose_msg
+        msg.pose_stamped = self.pose_stamped
         self.detection_info_publisher.publish(msg)
 
     def publish_annotated_image(self, annotated_image):
