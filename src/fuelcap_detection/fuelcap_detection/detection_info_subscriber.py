@@ -16,10 +16,11 @@ class DetectionInfoSubscriber(Node):
     
     def detection_info_callback(self, info_msg: FuelCapDetectionInfo):
         if info_msg.is_fuelcap_detected:
+            pose_stamped: PoseStamped = info_msg.pose_stamped
             log_msg = 'recieved detection info:\n'
             log_msg += f'Inference Time: {info_msg.inference_time}\n'
-            log_msg += f'Position: {info_msg.pose_stamped.pose.position.x}, {info_msg.pose_stamped.pose.position.y}, {info_msg.pose_stamped.pose.position.z}\n'
-            log_msg += f'Orientation: {info_msg.pose_stamped.pose.orientation.x}, {info_msg.pose_stamped.pose.orientation.y}, {info_msg.pose_stamped.pose.orientation.z}, {info_msg.pose_stamped.pose.orientation.w}\n'
+            log_msg += f'Position: {pose_stamped.pose.position.x}, {pose_stamped.pose.position.y}, {pose_stamped.pose.position.z}\n'
+            log_msg += f'Orientation: {pose_stamped.pose.orientation.x}, {pose_stamped.pose.orientation.y}, {pose_stamped.pose.orientation.z}, {pose_stamped.pose.orientation.w}\n'
             log_msg += f'Bounding Box Confidence: {info_msg.bbox_confidence_score}\n'
             log_msg += f'Additional Info: {info_msg.detection_info}\n'
             self.get_logger().info(log_msg)
@@ -33,6 +34,8 @@ def main(args=None):
     try:
         rclpy.spin(detection_node)
     except SystemExit:
+        pass
+    except KeyboardInterrupt:
         pass
 
     detection_node.destroy_node()

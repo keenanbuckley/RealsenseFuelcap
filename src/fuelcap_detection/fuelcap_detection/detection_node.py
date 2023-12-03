@@ -163,6 +163,8 @@ def main(args=None):
         rclpy.spin(detection_node)
     except SystemExit:
         pass
+    except KeyboardInterrupt:
+        pass
 
     detection_node.destroy_node()
     if rclpy.ok():
