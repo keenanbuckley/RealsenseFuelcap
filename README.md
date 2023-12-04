@@ -37,7 +37,7 @@ your working directory):
          -v $HOME/path/to/repository:/home/mines/mines_ws \
          --rm --name cuda_container mines_cuda
    ```
-- source the bashfile
+- source the bashrc file
    ```
       source .bashrc
    ```
