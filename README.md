@@ -121,6 +121,7 @@ unless otherwise mentioned. There are multiple notebooks including ones for
 ## Contributors
 
 [Keenan Buckley](https://github.com/HFocus) - <https://github.com/HFocus>
+[David Munro](https://github.com/damunro) - <https://github.com/damunro>
 
 ## License
 
