@@ -1,4 +1,4 @@
-# Stratom FuelCap POS Estimation Project Documentation
+# FuelCap POS Estimation Project Documentation
 
 ## Setup
 
