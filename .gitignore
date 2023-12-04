@@ -18,5 +18,6 @@ __pycache__
 drive_data
 posefromkeypoints
 data/image_list.txt
+data/simulated
 models/
 realsense_bag/
