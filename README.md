@@ -102,13 +102,13 @@ your working directory)
          -v $HOME/path/to/repository:/home/mines/mines_ws \
          --rm --name cuda_container mines_cuda
    ```
-2. Open container in a devcontainers window: 
-```
-   type ctrl+p and select 
-   >Dev Containser: Attach to Running Container...
-   >/cuda_container
-```
-After the window appears, you will be able to run the notebooks. Notebook cell's should be run sequentially 
+2. While the container is running, attach a new window to a devcontainer window.
+
+- type ctrl+p and type ">Dev Containser: Attach to Running Container..."
+- then select the containter (/cuda_container)
+
+
+3. After the window appears, you will be able to run the notebooks. Notebook cell's should be run sequentially 
 unless otherwise mentioned. There are multiple notebooks including ones for 
 1. Training Bounding Box Model
 2. Training Keypoints Model
