@@ -10,6 +10,11 @@
    docker buildx build -t mines_cuda -f Dockerfile.CUDA .
    ```
 
+### Installing Models
+1. Visit the [Releases](/Releases) page and download the latest models.zip file
+2. Inside the workspace create a folder named "models/" if there is not one already
+3. Extract "bbox_model.pth" and "bbox_model.pth" into the models folder
+
 ### Unity Data Collection
 For information on Unity Data Collection, please refer to the following GitHub repository: [KeypointSimulation](https://github.com/jschauer1/KeypointSimulation).
 
