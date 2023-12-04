@@ -88,7 +88,7 @@ To call the capture image service, run the following command:
 capture_image
 ```
 
-## Notebooks
+## Model Training and Jypyter Notebooks
 Machine Learning Models are trained and evaluated using jupyter notebooks. In order to run
 the notebooks, you must be inside of the docker container from a devcontainers window. 
 
