@@ -19,12 +19,12 @@
 For information on Unity Data Collection, please refer to the following GitHub repository: [KeypointSimulation](https://github.com/jschauer1/KeypointSimulation).
 
 ## Dependencies
-
-### ROS Node
-- CUDA
-- PyTorch CUDA
-- VScode with devcontainers extension
-- Docker
+- [CUDA](https://developer.nvidia.com/cuda-downloads)
+- [VSCode](https://code.visualstudio.com/)
+- [DevContainers Extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- [Docker Engine](https://docs.docker.com/engine/)
+- [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+- See the [Dockerfile.CUDA](Dockerfile.CUDA) for a full list of the dependencies used in the container
 
 ## Building ROS
 
