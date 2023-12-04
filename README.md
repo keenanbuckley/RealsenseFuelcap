@@ -18,7 +18,7 @@ For information on Unity Data Collection, please refer to the following GitHub r
 ### ROS Node
 - CUDA
 - PyTorch CUDA
-- VScode
+- VScode with devcontainers extension
 - Docker
 
 ## Building ROS
@@ -28,7 +28,8 @@ Once all dependencies are met, you can run the code using the following procedur
 
 ### Linux
 
-- build and run the docker file. To do so execute the following command:
+- Run the Docker Container. To do so execute the following command (ensure you change "path/to/repositiory" to
+your working directory):
    ```
       xhost +local:root 
       docker run -it --runtime=nvidia --net host --ipc host -e "DISPLAY=$DISPLAY" \
@@ -81,6 +82,37 @@ To call the capture image service, run the following command:
 ```
 capture_image
 ```
+
+## Notebooks
+Machine Learning Models are trained and evaluated using jupyter notebooks. In order to run
+the notebooks, you must be inside of the docker container from a devcontainers window. 
+
+1. To do this, start the docker contianer with the following command inside a VSCode terminal (ensure you change "path/to/repositiory" to
+your working directory)
+
+   ```
+      xhost +local:root 
+      docker run -it --runtime=nvidia --net host --ipc host -e "DISPLAY=$DISPLAY" \
+         -v "$HOME/.Xauthority:/root/.Xauthority:ro" --privileged \
+         -v $HOME/path/to/repository:/home/mines/mines_ws \
+         --rm --name cuda_container mines_cuda
+   ```
+2. Open container in a devcontainers window: 
+```
+   type ctrl+p and select 
+   >Dev Containser: Attach to Running Container...
+   >/cuda_container
+```
+After the window appears, you will be able to run the notebooks. Notebook cell's should be run sequentially 
+unless otherwise mentioned. There are multiple notebooks including ones for 
+1. Training Bounding Box Model
+2. Training Keypoints Model
+3. Generating Bounding Box Data
+4. Testing Bounding Box Model
+5. Testing Keypoints Model
+6. Bounding Box Model Statistics
+7. Pose Estimation (visualize)
+8. Prediction Results (based on ground truth data)
 
 ## Contributing
 
