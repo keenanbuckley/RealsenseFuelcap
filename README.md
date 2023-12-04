@@ -11,7 +11,7 @@
    ```
 
 ### Installing Models
-1. Visit the [Releases](/Releases) page and download the latest models.zip file
+1. Visit the [Releases](https://github.com/keenanbuckley/RealsenseFuelcap/releases) page and download the latest models.zip file
 2. Inside the workspace create a folder named "models/" if there is not one already
 3. Extract "bbox_model.pth" and "bbox_model.pth" into the models folder
 
