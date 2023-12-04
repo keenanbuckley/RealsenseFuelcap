@@ -114,14 +114,10 @@ unless otherwise mentioned. There are multiple notebooks including ones for
 7. Pose Estimation (visualize)
 8. Prediction Results (based on ground truth data)
 
-## Contributing
-
-(Existing content or instructions on how to contribute to the project)
-
 ## Contributors
 
-[Keenan Buckley](https://github.com/HFocus) - <https://github.com/HFocus>
-[David Munro](https://github.com/damunro) - <https://github.com/damunro>
+- [Keenan Buckley](https://github.com/keenanbuckley) - <https://github.com/keenanbuckley>
+- [David Munro](https://github.com/damunro) - <https://github.com/damunro>
 
 ## License
 
