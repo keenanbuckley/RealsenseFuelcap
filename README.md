@@ -123,6 +123,7 @@ unless otherwise mentioned. There are multiple notebooks including ones for
 
 - [Keenan Buckley](https://github.com/keenanbuckley) - <https://github.com/keenanbuckley>
 - [David Munro](https://github.com/damunro) - <https://github.com/damunro>
+- [Jaxon Schauer](https://github.com/jschauer1) - <https://github.com/jschauer1>
 
 ## License
 
