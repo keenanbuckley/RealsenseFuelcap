@@ -88,8 +88,8 @@ To call the capture image service, run the following command:
 capture_image
 ```
 
-## Model Training and Jypyter Notebooks
-Machine Learning Models are trained and evaluated using jupyter notebooks. In order to run
+## Model Training and Jupyter Notebooks
+Machine Learning Models are trained and evaluated using jupiter notebooks. In order to run
 the notebooks, you must be inside of the docker container from a devcontainers window. 
 
 1. To do this, start the docker contianer with the following command inside a VSCode terminal (ensure you change "path/to/repositiory" to
@@ -124,6 +124,7 @@ unless otherwise mentioned. There are multiple notebooks including ones for
 - [Keenan Buckley](https://github.com/keenanbuckley) - <https://github.com/keenanbuckley>
 - [David Munro](https://github.com/damunro) - <https://github.com/damunro>
 - [Jaxon Schauer](https://github.com/jschauer1) - <https://github.com/jschauer1>
+- [Xavier Cotton](https://github.com/Eldarch) - <https://github.com/Eldarch>
 
 ## License
 
